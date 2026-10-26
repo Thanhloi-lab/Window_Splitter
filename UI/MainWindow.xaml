@@ -1,0 +1,554 @@
+<Window x:Class="WindowsSplitter.UI.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:tb="http://www.hardcodet.net/taskbar"
+        Title="Ultrawide Zone &amp; Smart Borderless Manager"
+        Width="1100"
+        Height="760"
+        MinWidth="960"
+        MinHeight="660"
+        WindowStartupLocation="CenterScreen"
+        Icon="pack://application:,,,/app.ico"
+        Background="#181818"
+        Foreground="#EEEEEE">
+
+    <Window.Resources>
+        <!-- Modern Card Style -->
+        <Style x:Key="ModernCard" TargetType="Border">
+            <Setter Property="Background" Value="#222222" />
+            <Setter Property="BorderBrush" Value="#333333" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16" />
+        </Style>
+
+        <!-- Toggle Switch Alternative Style / Checkbox -->
+        <Style x:Key="ModernCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#EEEEEE" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,4" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- Accent Button Style -->
+        <Style x:Key="PrimaryBtn" TargetType="Button">
+            <Setter Property="Background" Value="#0078D4" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#108CEB" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#006CBE" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary Button Style -->
+        <Style x:Key="SecondaryBtn" TargetType="Button">
+            <Setter Property="Background" Value="#2D2D2D" />
+            <Setter Property="Foreground" Value="#EEEEEE" />
+            <Setter Property="BorderBrush" Value="#444444" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#383838" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#242424" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Danger Button Style -->
+        <Style x:Key="DangerBtn" TargetType="Button">
+            <Setter Property="Background" Value="#332222" />
+            <Setter Property="Foreground" Value="#FF6B6B" />
+            <Setter Property="BorderBrush" Value="#553333" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#C42B1C" />
+                                <Setter Property="Foreground" Value="#FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- System Tray Icon -->
+        <tb:TaskbarIcon x:Name="TrayIcon"
+                        IconSource="pack://application:,,,/app.ico"
+                        ToolTipText="Ultrawide Zone &amp; Smart Borderless Manager"
+                        TrayMouseDoubleClick="TrayIcon_DoubleClick">
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu Background="#252525" Foreground="#EEEEEE">
+                    <MenuItem Header="Mở Cài đặt" Click="MenuOpenSettings_Click" FontWeight="Bold" />
+                    <Separator Background="#444444" />
+                    <MenuItem x:Name="MenuHookStatus" Header="Bật Ghi đè Phím tắt (Win+Arrow)" IsCheckable="True" IsChecked="True" Click="MenuToggleHook_Click" />
+                    <MenuItem Header="Đưa cửa sổ hiện tại sang Vùng 1 (Trái)" Click="MenuSnapZone1_Click" />
+                    <MenuItem Header="Đưa cửa sổ hiện tại sang Vùng 2 (Phải - 2K)" Click="MenuSnapZone2_Click" />
+                    <MenuItem Header="Chuyển cửa sổ sang Màn hình khác" Click="MenuMoveOtherMonitor_Click" />
+                    <Separator Background="#444444" />
+                    <MenuItem Header="Thoát ứng dụng" Click="MenuExit_Click" />
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
+
+        <!-- Top Header Navigation & Status -->
+        <Border Grid.Row="0" Background="#1F1F1F" BorderBrush="#2D2D2D" BorderThickness="0,0,0,1" Padding="20,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Brand / Logo -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#0078D4" Width="32" Height="32" CornerRadius="6" Margin="0,0,12,0">
+                        <TextBlock Text="⊞" FontSize="18" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel>
+                        <TextBlock Text="ULTRAWIDE ZONE &amp; SMART BORDERLESS" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" />
+                        <TextBlock Text="Đa màn hình: Hỗ trợ Extend, Duplicate &amp; Tùy chỉnh Preset theo từng Màn hình" FontSize="11" Foreground="#888888" />
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Status Badges & Quick Action -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Duplicate Mode Indicator -->
+                    <Border x:Name="BadgeDuplicateMode" Visibility="Collapsed" Background="#4A3700" BorderBrush="#8A6700" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,10,0">
+                        <TextBlock Text="🪞 Duplicate Mode Active" FontSize="11" Foreground="#FFD700" FontWeight="SemiBold" />
+                    </Border>
+
+                    <!-- Admin Rights Badge -->
+                    <Border x:Name="BadgeAdmin" Background="#1D3B26" BorderBrush="#2D6A3E" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,10,0">
+                        <TextBlock Text="🛡️ Administrator Active" FontSize="11" Foreground="#57D97A" FontWeight="SemiBold" />
+                    </Border>
+
+                    <!-- Hook Status Badge -->
+                    <Border x:Name="BadgeHook" Background="#173147" BorderBrush="#1C5380" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,12,0">
+                        <TextBlock x:Name="TxtHookStatus" Text="⚡ Win+Arrow: BẬT" FontSize="11" Foreground="#4CC2FF" FontWeight="SemiBold" />
+                    </Border>
+
+                    <!-- Minimize to Tray Button -->
+                    <Button Style="{StaticResource SecondaryBtn}" Content="Ẩn xuống Khay Hệ Thống" Click="BtnMinimizeToTray_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area: Tabs -->
+        <TabControl Grid.Row="1" Background="Transparent" BorderThickness="0" Margin="16,10,16,16">
+            <!-- TAB 1: ZONE MANAGER -->
+            <TabItem Header="  ⊞ Quản lý Chia Vùng (Zone Manager)  " FontSize="14" FontWeight="SemiBold" Padding="16,8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="6,14,6,6">
+
+                        <!-- Monitor Selector & Layout Card -->
+                        <Border Style="{StaticResource ModernCard}" Margin="0,0,0,14">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!-- Header with Refresh -->
+                                <Grid Grid.Row="0" Margin="0,0,0,12">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Bố cục vùng chia màn hình (Layout Presets)" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" />
+                                        <TextBlock x:Name="TxtMonitorTopologyTag" Text="Đa màn hình (Extend)" FontSize="12" Foreground="#888888" Margin="10,2,0,0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" HorizontalAlignment="Right" Style="{StaticResource SecondaryBtn}" Content="🔍 Làm mới danh sách màn hình" Click="BtnDetectScreen_Click" />
+                                </Grid>
+
+                                <!-- Monitor Picker -->
+                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="Đang chọn màn hình:" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#CCCCCC" FontWeight="SemiBold" />
+                                    <ComboBox x:Name="CmbMonitors" Width="440" SelectionChanged="CmbMonitors_SelectionChanged" Background="#2D2D2D" Foreground="#000000" Padding="8,6" />
+                                    <TextBlock x:Name="TxtMonitorDpiBadge" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#4CC2FF" FontSize="12" />
+                                </StackPanel>
+
+                                <!-- Preset Picker for Selected Monitor -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,16">
+                                    <TextBlock Text="Chọn Preset:" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#CCCCCC" />
+                                    <ComboBox x:Name="CmbPresets" Width="380" SelectionChanged="CmbPresets_SelectionChanged" Background="#2D2D2D" Foreground="#000000" Padding="8,6" />
+                                    <TextBlock x:Name="TxtPresetDescription" VerticalAlignment="Center" Margin="14,0,0,0" Foreground="#999999" FontSize="12" />
+                                </StackPanel>
+
+                                <!-- Visual Monitor Diagram -->
+                                <Border Grid.Row="3" Background="#111111" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Height="140" Padding="10">
+                                    <Grid x:Name="GridMonitorVisual">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="ColVisualZone1" Width="880*" />
+                                            <ColumnDefinition x:Name="ColVisualZone2" Width="2560*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Visual Zone 1 -->
+                                        <Border x:Name="BorderVisualZone1" Grid.Column="0" Background="#220078D4" BorderBrush="#0078D4" BorderThickness="2" CornerRadius="4" Margin="2">
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="VÙNG 1" FontSize="12" FontWeight="Bold" Foreground="#4CC2FF" HorizontalAlignment="Center" />
+                                                <TextBlock x:Name="TxtVisualZone1Size" Text="880 × 1440 px" FontSize="11" Foreground="#A0FFFFFF" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Visual Zone 2 -->
+                                        <Border x:Name="BorderVisualZone2" Grid.Column="1" Background="#222B5797" BorderBrush="#5078FF" BorderThickness="2" CornerRadius="4" Margin="2">
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <TextBlock Text="VÙNG 2" FontSize="13" FontWeight="Bold" Foreground="#82B1FF" HorizontalAlignment="Center" />
+                                                <TextBlock x:Name="TxtVisualZone2Size" Text="2560 × 1440 px" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Zone Coordinates & Ratio Slider -->
+                        <Border Style="{StaticResource ModernCard}" Margin="0,0,0,14">
+                            <StackPanel>
+                                <TextBlock Text="Tinh chỉnh Tọa độ &amp; Kích thước Vùng cho Màn hình đang chọn" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,12" />
+
+                                <!-- Slider for Ratio -->
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                                        <TextBlock Text="Kéo thanh chia tỷ lệ Vùng 1 / Vùng 2:" Foreground="#CCCCCC" FontSize="12" />
+                                        <TextBlock x:Name="TxtSliderRatioValue" Text=" 880px / 2560px" FontWeight="Bold" Foreground="#4CC2FF" FontSize="12" />
+                                    </StackPanel>
+                                    <Slider x:Name="SliderZoneSplit" Grid.Row="1" Minimum="100" Maximum="3200" Value="880" ValueChanged="SliderZoneSplit_ValueChanged" TickFrequency="20" IsSnapToTickEnabled="False" />
+                                </Grid>
+
+                                <!-- Numeric Inputs for Zones -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Zone 1 Form -->
+                                    <Border Grid.Column="0" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="12">
+                                        <StackPanel>
+                                            <TextBlock Text="Cấu hình Vùng 1" FontWeight="Bold" Foreground="#4CC2FF" Margin="0,0,0,10" />
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="X:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone1X" Grid.Column="1" Text="0" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                                <TextBlock Grid.Column="3" Text="Y:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone1Y" Grid.Column="4" Text="0" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                            </Grid>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Rộng:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone1W" Grid.Column="1" Text="880" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                                <TextBlock Grid.Column="3" Text="Cao:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone1H" Grid.Column="4" Text="1440" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Zone 2 Form -->
+                                    <Border Grid.Column="2" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="12">
+                                        <StackPanel>
+                                            <TextBlock Text="Cấu hình Vùng 2" FontWeight="Bold" Foreground="#82B1FF" Margin="0,0,0,10" />
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="X:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone2X" Grid.Column="1" Text="880" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                                <TextBlock Grid.Column="3" Text="Y:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone2Y" Grid.Column="4" Text="0" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                            </Grid>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="10" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Rộng:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone2W" Grid.Column="1" Text="2560" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                                <TextBlock Grid.Column="3" Text="Cao:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBox x:Name="TxtZone2H" Grid.Column="4" Text="1440" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Button Style="{StaticResource PrimaryBtn}" Content="Lưu Cấu Hình Vùng Màn Hình Này" Margin="0,14,0,0" HorizontalAlignment="Right" Click="BtnSaveZoneSettings_Click" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Keyboard Shortcuts & Window Behavior -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Behavior Options Card -->
+                            <Border Grid.Column="0" Style="{StaticResource ModernCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Tùy chọn Hành vi &amp; Đa Màn Hình" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,10" />
+
+                                    <CheckBox x:Name="ChkOverrideSnap" Style="{StaticResource ModernCheckBox}" Content="Ghi đè phím tắt Windows Snap mặc định (Win + Arrow)" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                    <CheckBox x:Name="ChkWinShiftMonitorMove" Style="{StaticResource ModernCheckBox}" Content="Win + Shift + Arrow: Chuyển cửa sổ sang màn hình khác" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                    <CheckBox x:Name="ChkCrossMonitorWrap" Style="{StaticResource ModernCheckBox}" Content="Win + Arrow: Cuộn vòng qua các màn hình liền kề" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                    <CheckBox x:Name="ChkInvisibleBorderComp" Style="{StaticResource ModernCheckBox}" Content="Bù trừ viền tàng hình DWM (Invisible Border Compensation ~7px)" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                    <CheckBox x:Name="ChkDisableRoundedCorners" Style="{StaticResource ModernCheckBox}" Content="Tắt góc bo tròn Windows 11 khi cửa sổ vào Zone" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                    <CheckBox x:Name="ChkShowZoneOverlay" Style="{StaticResource ModernCheckBox}" Content="Hiển thị khung viền mờ khi di chuyển vùng (Zone Overlay)" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                    <CheckBox x:Name="ChkStartMinimized" Style="{StaticResource ModernCheckBox}" Content="Khởi động ngầm dưới khay hệ thống (System Tray)" IsChecked="False" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Hotkey Reference Card -->
+                            <Border Grid.Column="2" Style="{StaticResource ModernCard}">
+                                <StackPanel>
+                                    <TextBlock Text="Hướng dẫn Phím tắt (Quick Hotkeys)" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,10" />
+
+                                    <Border Background="#1C1C1C" CornerRadius="4" Padding="10,6" Margin="0,0,0,6">
+                                        <Grid>
+                                            <TextBlock Text="Win + Mũi tên Trái / Phải" FontWeight="SemiBold" Foreground="#4CC2FF" />
+                                            <TextBlock Text="Đưa vào Vùng 1 / Vùng 2 (hoặc sang trái/phải)" HorizontalAlignment="Right" Foreground="#CCCCCC" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Background="#1C1C1C" CornerRadius="4" Padding="10,6" Margin="0,0,0,6">
+                                        <Grid>
+                                            <TextBlock Text="Win + Shift + Mũi tên (← / →)" FontWeight="SemiBold" Foreground="#57D97A" />
+                                            <TextBlock Text="Chuyển cửa sổ sang Màn hình khác" HorizontalAlignment="Right" Foreground="#CCCCCC" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Background="#1C1C1C" CornerRadius="4" Padding="10,6" Margin="0,0,0,6">
+                                        <Grid>
+                                            <TextBlock Text="Win + Mũi tên Lên (↑)" FontWeight="SemiBold" Foreground="#4CC2FF" />
+                                            <TextBlock Text="Phóng to toàn bộ / Khôi phục" HorizontalAlignment="Right" Foreground="#CCCCCC" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Background="#1C1C1C" CornerRadius="4" Padding="10,6">
+                                        <Grid>
+                                            <TextBlock Text="Win + Mũi tên Xuống (↓)" FontWeight="SemiBold" Foreground="#4CC2FF" />
+                                            <TextBlock Text="Thu nhỏ (Minimize) hoặc trả kích thước" HorizontalAlignment="Right" Foreground="#CCCCCC" />
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- TAB 2: BORDERLESS MANAGER -->
+            <TabItem Header="  🗖 Quản lý Không Viền (Borderless Manager)  " FontSize="14" FontWeight="SemiBold" Padding="16,8">
+                <Grid Margin="6,14,6,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="420" />
+                        <ColumnDefinition Width="16" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left Card: Active Running Applications List -->
+                    <Border Grid.Column="0" Style="{StaticResource ModernCard}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,10">
+                                <TextBlock Text="Cửa sổ đang mở (Active Apps)" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
+                                <Button HorizontalAlignment="Right" Style="{StaticResource SecondaryBtn}" Content="↻ Làm mới" Click="BtnRefreshRunningApps_Click" />
+                            </Grid>
+
+                            <!-- Filter Search Box -->
+                            <TextBox x:Name="TxtFilterRunningApps" Grid.Row="1" Margin="0,0,0,10" Padding="8,6" Background="#1A1A1A" Foreground="#FFFFFF" BorderBrush="#444444" TextChanged="TxtFilterRunningApps_TextChanged" ToolTip="Tìm kiếm theo tên tiến trình hoặc tiêu đề..." />
+
+                            <!-- Running Apps List -->
+                            <ListBox x:Name="ListRunningApps" Grid.Row="2" Background="#161616" BorderBrush="#333333" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="#252525" BorderThickness="0,0,0,1" Padding="6,8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="32" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Icon -->
+                                                <Image Grid.Column="0" Source="{Binding Icon}" Width="24" Height="24" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                                                <!-- Info -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" Foreground="#FFFFFF" TextTrimming="CharacterEllipsis" FontSize="12" />
+                                                    <TextBlock Text="{Binding ProcessName}" Foreground="#888888" FontSize="11" Margin="0,2,0,0" />
+                                                </StackPanel>
+
+                                                <!-- Actions -->
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Style="{StaticResource SecondaryBtn}" Padding="8,4" Content="Bỏ viền" ToolTip="Áp dụng Borderless ngay lập tức" Click="BtnQuickBorderless_Click" Margin="0,0,6,0" />
+                                                    <Button Style="{StaticResource PrimaryBtn}" Padding="8,4" Content="+ Whitelist" ToolTip="Thêm vào danh sách Whitelist" Click="BtnAddToWhitelist_Click" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Right Card: Borderless Whitelist Manager -->
+                    <Border Grid.Column="2" Style="{StaticResource ModernCard}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Header -->
+                            <Grid Grid.Row="0" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Danh sách Chỉ định Không Viền (Borderless Whitelist)" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" />
+                                    <TextBlock Text="Tự động xóa viền, đè Taskbar và gắn nút nổi [- [] X] khi app hoạt động" FontSize="11" Foreground="#888888" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <Button HorizontalAlignment="Right" Style="{StaticResource PrimaryBtn}" Content="+ Thêm ứng dụng thủ công..." Click="BtnAddAppManual_Click" />
+                            </Grid>
+
+                            <!-- Whitelist Items -->
+                            <ListBox x:Name="ListWhitelist" Grid.Row="1" Background="#161616" BorderBrush="#333333" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#202020" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+
+                                                <!-- Top: Process Name and Action Buttons -->
+                                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" Foreground="#4CC2FF" FontSize="14" />
+                                                        <TextBlock Text="{Binding ProcessName, StringFormat=' ({0})'}" Foreground="#888888" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                                    </StackPanel>
+
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                        <Button Style="{StaticResource PrimaryBtn}" Content="Áp dụng ngay" Padding="10,4" Margin="0,0,6,0" Click="BtnApplyWhitelistNow_Click" />
+                                                        <Button Style="{StaticResource SecondaryBtn}" Content="Khôi phục gốc" Padding="10,4" Margin="0,0,6,0" Click="BtnRestoreWhitelistWindow_Click" />
+                                                        <Button Style="{StaticResource DangerBtn}" Content="Xóa" Click="BtnDeleteWhitelistRule_Click" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <!-- Middle: Target Monitor & Zone Selection -->
+                                                <WrapPanel Grid.Row="1" Margin="0,0,0,8">
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
+                                                        <TextBlock Text="Vùng đích (Target Zone):" Foreground="#CCCCCC" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
+                                                        <ComboBox Width="180" SelectedIndex="{Binding TargetZoneId, Mode=TwoWay}" SelectionChanged="WhitelistSetting_Changed" Background="#262626" Foreground="#000000" Padding="6,3">
+                                                            <ComboBoxItem Content="Toàn màn hình (Fullscreen)" />
+                                                            <ComboBoxItem Content="Vùng 1 (Bên Trái)" />
+                                                            <ComboBoxItem Content="Vùng 2 (Bên Phải - Chuẩn 2K)" />
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                </WrapPanel>
+
+                                                <!-- Bottom: Feature Toggles -->
+                                                <WrapPanel Grid.Row="2">
+                                                    <CheckBox Content="Tự động áp dụng (Auto-apply)" IsChecked="{Binding AutoApply, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Margin="0,0,16,4" Foreground="#DDD" />
+                                                    <CheckBox Content="Đè lên Taskbar" IsChecked="{Binding CoverTaskbar, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Margin="0,0,16,4" Foreground="#DDD" />
+                                                    <CheckBox Content="Cụm nút [- [] X] nổi thông minh" IsChecked="{Binding ShowFloatingCaption, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Margin="0,0,16,4" Foreground="#DDD" />
+                                                    <CheckBox Content="Tắt góc bo tròn Windows 11" IsChecked="{Binding RemoveRoundedCorners, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Foreground="#DDD" />
+                                                </WrapPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

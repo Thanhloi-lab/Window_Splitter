@@ -1,0 +1,50 @@
+<Window x:Class="WindowsSplitter.UI.ZoneOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ZoneOverlay"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        ShowActivated="False"
+        Focusable="False">
+
+    <Grid x:Name="OverlayContainer" Opacity="0">
+        <!-- Zone Outline and Frosted Fill -->
+        <Border BorderBrush="#0078D4"
+                BorderThickness="3"
+                Background="#250078D4"
+                CornerRadius="6"
+                Margin="4">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="12" Color="#0078D4" Opacity="0.5" ShadowDepth="0" />
+            </Border.Effect>
+
+            <!-- Center Badge -->
+            <Border Background="#D91B1B1B"
+                    BorderBrush="#550078D4"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="18,12">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock x:Name="TxtZoneName"
+                               Text="Zone 1"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#FFFFFF"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="TxtZoneDimensions"
+                               Text="880 x 1440"
+                               FontSize="13"
+                               Foreground="#A0FFFFFF"
+                               HorizontalAlignment="Center"
+                               Margin="0,3,0,0" />
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</Window>
