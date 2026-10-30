@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace WindowsSplitter.Core
@@ -9,7 +6,7 @@ namespace WindowsSplitter.Core
     {
         public IntPtr Handle { get; set; }
         public string DeviceName { get; set; } = string.Empty;
-        public string FriendlyName { get; set; } = string.Empty;
+        public int Index { get; set; } = 1;
         public NativeMethods.RECT Bounds { get; set; }
         public NativeMethods.RECT WorkArea { get; set; }
         public bool IsPrimary { get; set; }
@@ -20,6 +17,19 @@ namespace WindowsSplitter.Core
         public int Height => Bounds.Height;
         public bool IsUltrawide => Height > 0 && ((double)Width / Height) >= 2.0;
         public bool IsVertical => Height > Width;
+
+        public string FriendlyName
+        {
+            get
+            {
+                bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
+                string monPrefix = isEn ? "Monitor" : "Màn hình";
+                string primaryTag = isEn ? " [Primary]" : " [Chính]";
+                string typeTag = IsUltrawide ? " (Ultrawide 21:9)" : (IsVertical ? (isEn ? " (Vertical)" : " (Màn dọc)") : " (16:9)");
+                string primaryStr = IsPrimary ? primaryTag : "";
+                return $"🖥️ {monPrefix} {Index}: {Width} × {Height}{primaryStr}{typeTag}";
+            }
+        }
 
         public override string ToString() => FriendlyName;
     }
@@ -70,19 +80,11 @@ namespace WindowsSplitter.Core
 
                     int w = mi.rcMonitor.Width;
                     int h = mi.rcMonitor.Height;
-                    string tag = "";
-                    if (isPrimary) tag += " [Chính]";
-                    if (h > 0 && ((double)w / h) >= 2.0) tag += " (Ultrawide 21:9)";
-                    else if (h > w) tag += " (Màn dọc)";
-                    else tag += " (16:9)";
-
-                    string friendly = $"🖥️ Màn hình {index}: {w} × {h}{tag}";
-
                     list.Add(new MonitorInfoItem
                     {
                         Handle = hMon,
                         DeviceName = mi.szDevice ?? $"DISPLAY{index}",
-                        FriendlyName = friendly,
+                        Index = index,
                         Bounds = mi.rcMonitor,
                         WorkArea = mi.rcWork,
                         IsPrimary = isPrimary,

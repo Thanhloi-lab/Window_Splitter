@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Windows.Threading;
 using WindowsSplitter.Models;
 
@@ -69,6 +65,11 @@ namespace WindowsSplitter.Core
                 return;
 
             CheckAndApplyWindow(hwnd);
+
+            if (_borderlessEngine.IsBorderless(hwnd) && _borderlessEngine.IsCoveringTaskbar(hwnd))
+            {
+                _borderlessEngine.BringAboveTaskbar(hwnd);
+            }
         }
 
         public void CheckOpenWindowsForAutoApply()

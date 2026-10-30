@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using WindowsSplitter.Models;
 
@@ -19,6 +14,60 @@ namespace WindowsSplitter.Core
         public ZoneEngine(AppSettings settings)
         {
             _settings = settings;
+        }
+
+        public Zone? GetWindowCurrentZone(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return null;
+
+            var currentMonitor = MonitorManager.Instance.GetMonitorForWindow(hWnd);
+            var preset = _settings.GetPresetForMonitor(currentMonitor);
+            if (preset == null || preset.Zones.Count == 0) return null;
+
+            if (_windowCurrentZoneMap.TryGetValue(hWnd, out int zoneId))
+            {
+                var found = preset.Zones.FirstOrDefault(z => z.Id == zoneId);
+                if (found != null) return found;
+            }
+
+            // Detect by screen coordinates
+            if (NativeMethods.GetWindowRect(hWnd, out var winRect))
+            {
+                int relX = winRect.Left - currentMonitor.Bounds.Left;
+                int relW = winRect.Width;
+
+                Zone? bestZone = null;
+                int maxOverlap = 0;
+
+                foreach (var z in preset.Zones)
+                {
+                    int overlapLeft = Math.Max(relX, z.X);
+                    int overlapRight = Math.Min(relX + relW, z.X + z.Width);
+                    int overlap = Math.Max(0, overlapRight - overlapLeft);
+
+                    if (overlap > maxOverlap)
+                    {
+                        maxOverlap = overlap;
+                        bestZone = z;
+                    }
+                }
+
+                if (bestZone != null && maxOverlap > 100)
+                {
+                    _windowCurrentZoneMap[hWnd] = bestZone.Id;
+                    return bestZone;
+                }
+            }
+
+            return null;
+        }
+
+        public void SetWindowCurrentZone(IntPtr hWnd, int zoneId)
+        {
+            if (hWnd != IntPtr.Zero)
+            {
+                _windowCurrentZoneMap[hWnd] = zoneId;
+            }
         }
 
         public bool SnapWindow(IntPtr hWnd, KeyDirection direction)
@@ -196,18 +245,18 @@ namespace WindowsSplitter.Core
 
         public void ApplyWindowToZone(IntPtr hWnd, Zone targetZone, MonitorInfoItem monitor)
         {
-            int monLeft = monitor.Bounds.Left;
-            int monTop = monitor.Bounds.Top;
+            int monLeft = monitor.WorkArea.Left;
+            int monTop = monitor.WorkArea.Top;
 
             // Target visual rectangle
             int targetX = monLeft + targetZone.X;
             int targetY = monTop + targetZone.Y;
             int targetWidth = targetZone.Width;
-            int targetHeight = targetZone.Height;
+            int targetHeight = Math.Min(targetZone.Height, monitor.WorkArea.Height);
 
-            // Clamp if zone definition exceeds this monitor
-            if (targetWidth > monitor.Bounds.Width) targetWidth = monitor.Bounds.Width;
-            if (targetHeight > monitor.Bounds.Height) targetHeight = monitor.Bounds.Height;
+            // Clamp if zone definition exceeds this monitor's work area
+            if (targetWidth > monitor.WorkArea.Width) targetWidth = monitor.WorkArea.Width;
+            if (targetHeight > monitor.WorkArea.Height) targetHeight = monitor.WorkArea.Height;
 
             // Invisible Border Compensation
             int actualX = targetX;

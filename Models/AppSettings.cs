@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text.Json;
 using WindowsSplitter.Core;
 
@@ -16,12 +13,16 @@ namespace WindowsSplitter.Models
         public bool ShowZoneOverlayOnSnap { get; set; } = true;
         public int ZoneOverlayDurationMs { get; set; } = 500;
         public bool StartMinimizedToTray { get; set; } = false;
+        public bool CloseToTray { get; set; } = false;
+        public bool StartWithWindows { get; set; } = false;
+        public string Language { get; set; } = "en";
 
         // Multi-monitor advanced options
         public bool EnableCrossMonitorWrap { get; set; } = true;
         public bool EnableWinShiftMonitorMove { get; set; } = true;
+        public bool DefaultCoverTaskbar { get; set; } = true;
 
-        public string SelectedPresetId { get; set; } = "preset_ultrawide_2k";
+        public string SelectedPresetId { get; set; } = "";
         public List<ZonePreset> Presets { get; set; } = new();
         public List<MonitorLayoutConfig> MonitorConfigs { get; set; } = new();
         public List<BorderlessAppRule> BorderlessWhitelist { get; set; } = new();
@@ -61,6 +62,9 @@ namespace WindowsSplitter.Models
                     var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
                     if (settings != null)
                     {
+                        // Clean up legacy dummy apps if any
+                        settings.BorderlessWhitelist?.RemoveAll(r => r.ProcessName == "wwm.exe" || r.ProcessName == "chrome.exe" || r.ProcessName == "potplayer64.exe");
+
                         settings.EnsureDefaults();
                         return settings;
                     }
@@ -79,69 +83,86 @@ namespace WindowsSplitter.Models
 
         public void EnsureDefaults()
         {
+            var primary = MonitorManager.Instance.GetPrimaryMonitor();
+            int screenW = primary != null && primary.Width > 0 ? primary.Width : 1920;
+            int screenH = primary != null && primary.Height > 0 ? primary.Height : 1080;
+
+            var defaultPresets = ZonePreset.CreateDefaultPresets(screenW, screenH);
+
             if (Presets == null || Presets.Count == 0)
             {
-                Presets = ZonePreset.CreateDefaultPresets(3440, 1440);
+                Presets = defaultPresets;
+            }
+            else
+            {
+                // Ensure all default presets exist and are marked IsDefault = true
+                foreach (var def in defaultPresets)
+                {
+                    var existing = Presets.FirstOrDefault(p => p.Id == def.Id);
+                    if (existing == null)
+                    {
+                        Presets.Insert(0, def);
+                    }
+                    else
+                    {
+                        existing.IsDefault = true;
+                    }
+                }
             }
 
             if (string.IsNullOrEmpty(SelectedPresetId) || Presets.All(p => p.Id != SelectedPresetId))
             {
-                SelectedPresetId = Presets.FirstOrDefault()?.Id ?? "preset_ultrawide_2k";
+                SelectedPresetId = Presets.FirstOrDefault()?.Id ?? "";
             }
 
             if (MonitorConfigs == null)
             {
                 MonitorConfigs = new List<MonitorLayoutConfig>();
             }
+            else
+            {
+                foreach (var config in MonitorConfigs)
+                {
+                    var monDefaults = ZonePreset.CreateDefaultPresets(config.ScreenWidth, config.ScreenHeight);
+                    if (config.Presets == null || config.Presets.Count == 0)
+                    {
+                        config.Presets = monDefaults;
+                    }
+                    else
+                    {
+                        foreach (var def in monDefaults)
+                        {
+                            var existing = config.Presets.FirstOrDefault(p => p.Id == def.Id);
+                            if (existing == null)
+                            {
+                                config.Presets.Insert(0, def);
+                            }
+                            else
+                            {
+                                existing.IsDefault = true;
+                            }
+                        }
+                    }
+                }
+            }
 
             if (BorderlessWhitelist == null)
             {
                 BorderlessWhitelist = new List<BorderlessAppRule>();
             }
-
-            if (BorderlessWhitelist.Count == 0)
-            {
-                BorderlessWhitelist.Add(new BorderlessAppRule
-                {
-                    ProcessName = "wwm.exe",
-                    DisplayName = "Where Winds Meet (Game)",
-                    TargetZoneId = 2,
-                    TargetMonitorDevice = "", // Auto
-                    CoverTaskbar = true,
-                    ShowFloatingCaption = true,
-                    AutoApply = true
-                });
-
-                BorderlessWhitelist.Add(new BorderlessAppRule
-                {
-                    ProcessName = "chrome.exe",
-                    DisplayName = "Google Chrome",
-                    TargetZoneId = 1,
-                    TargetMonitorDevice = "",
-                    CoverTaskbar = false,
-                    ShowFloatingCaption = false,
-                    AutoApply = false
-                });
-
-                BorderlessWhitelist.Add(new BorderlessAppRule
-                {
-                    ProcessName = "potplayer64.exe",
-                    DisplayName = "PotPlayer (Media Player)",
-                    TargetZoneId = 2,
-                    TargetMonitorDevice = "",
-                    CoverTaskbar = true,
-                    ShowFloatingCaption = true,
-                    AutoApply = false
-                });
-            }
         }
 
         public MonitorLayoutConfig GetOrCreateMonitorConfig(string deviceName, int width, int height)
         {
+            if (MonitorConfigs == null)
+            {
+                MonitorConfigs = new List<MonitorLayoutConfig>();
+            }
+
             var config = MonitorConfigs.FirstOrDefault(c => string.Equals(c.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase));
             if (config == null)
             {
-                config = new MonitorLayoutConfig(deviceName, width, height);
+                config = new MonitorLayoutConfig(deviceName, width > 0 ? width : 1920, height > 0 ? height : 1080);
                 MonitorConfigs.Add(config);
             }
             return config;
@@ -149,9 +170,14 @@ namespace WindowsSplitter.Models
 
         public ZonePreset GetPresetForMonitor(MonitorInfoItem monitor)
         {
+            if (MonitorConfigs == null)
+            {
+                MonitorConfigs = new List<MonitorLayoutConfig>();
+            }
+
             if (monitor == null || string.IsNullOrEmpty(monitor.DeviceName))
             {
-                return GetActivePreset() ?? Presets.FirstOrDefault() ?? new ZonePreset();
+                return GetActivePreset() ?? Presets?.FirstOrDefault() ?? new ZonePreset();
             }
 
             var config = MonitorConfigs.FirstOrDefault(c => string.Equals(c.DeviceName, monitor.DeviceName, StringComparison.OrdinalIgnoreCase));
@@ -162,7 +188,9 @@ namespace WindowsSplitter.Models
             }
 
             // Create per-monitor layout automatically matching aspect ratio
-            var newConfig = GetOrCreateMonitorConfig(monitor.DeviceName, monitor.Width, monitor.Height);
+            int w = monitor.Width > 0 ? monitor.Width : 1920;
+            int h = monitor.Height > 0 ? monitor.Height : 1080;
+            var newConfig = GetOrCreateMonitorConfig(monitor.DeviceName, w, h);
             return newConfig.GetActivePreset() ?? GetActivePreset() ?? new ZonePreset();
         }
 
@@ -182,6 +210,13 @@ namespace WindowsSplitter.Models
 
         public ZonePreset? GetActivePreset()
         {
+            if (Presets == null || Presets.Count == 0)
+            {
+                var primary = MonitorManager.Instance.GetPrimaryMonitor();
+                int screenW = primary != null && primary.Width > 0 ? primary.Width : 1920;
+                int screenH = primary != null && primary.Height > 0 ? primary.Height : 1080;
+                Presets = ZonePreset.CreateDefaultPresets(screenW, screenH);
+            }
             return Presets.FirstOrDefault(p => p.Id == SelectedPresetId) ?? Presets.FirstOrDefault();
         }
     }

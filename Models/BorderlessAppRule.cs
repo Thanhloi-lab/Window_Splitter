@@ -1,11 +1,9 @@
-using System;
-
 namespace WindowsSplitter.Models
 {
     public class BorderlessAppRule
     {
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
-        
+
         /// <summary>
         /// Process executable name (e.g., "wwm.exe", "chrome.exe")
         /// </summary>

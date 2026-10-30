@@ -1,11 +1,13 @@
 <Window x:Class="WindowsSplitter.UI.AddAppDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Thêm ứng dụng vào danh sách Borderless"
+        Title="{DynamicResource Str_AddAppTitle}"
         Width="500"
-        Height="470"
+        Height="490"
+        MinHeight="440"
+        MinWidth="420"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        ResizeMode="CanResizeWithGrip"
         Background="#202020"
         Foreground="#FFFFFF">
 
@@ -35,67 +37,64 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="Cấu hình Ứng dụng Không viền (Smart Borderless)"
+            <TextBlock Text="{DynamicResource Str_AddAppHeader}"
                        FontSize="16"
                        FontWeight="SemiBold"
                        Foreground="#FFFFFF" />
-            <TextBlock Text="Thiết lập hành vi tự động xóa viền, ép màn hình &amp; phóng vào Zone khi ứng dụng chạy."
+            <TextBlock Text="{DynamicResource Str_AddAppDesc}"
                        FontSize="12"
                        Foreground="#A0A0A0"
-                       Margin="0,4,0,0" />
+                       Margin="0,4,0,0"
+                       TextWrapping="Wrap" />
         </StackPanel>
 
-        <!-- Fields -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
+        <!-- Fields with ScrollViewer -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
+            <StackPanel Margin="0,0,8,0">
                 <!-- Process Name -->
                 <StackPanel Margin="0,0,0,12">
-                    <TextBlock Text="Tên file thực thi (.exe) *" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
+                    <TextBlock Text="{DynamicResource Str_ProcessExeLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBox x:Name="TxtProcessName" Grid.Column="0" ToolTip="Ví dụ: wwm.exe, chrome.exe" />
-                        <Button x:Name="BtnBrowse" Grid.Column="1" Content="Duyệt file..." Margin="8,0,0,0" Padding="12,6" Click="BtnBrowse_Click" />
+                        <TextBox x:Name="TxtProcessName" Grid.Column="0" ToolTip="e.g. msedge.exe, chrome.exe, wwm.exe" />
+                        <Button x:Name="BtnBrowse" Grid.Column="1" Content="{DynamicResource Str_BtnBrowse}" Margin="8,0,0,0" Padding="12,6" Click="BtnBrowse_Click" />
                     </Grid>
                 </StackPanel>
 
                 <!-- Display Name -->
                 <StackPanel Margin="0,0,0,12">
-                    <TextBlock Text="Tên hiển thị / Gợi nhớ" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
-                    <TextBox x:Name="TxtDisplayName" ToolTip="Ví dụ: Where Winds Meet" />
+                    <TextBlock Text="{DynamicResource Str_DisplayNameLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
+                    <TextBox x:Name="TxtDisplayName" ToolTip="e.g. Microsoft Edge, Where Winds Meet" />
                 </StackPanel>
 
                 <!-- Target Monitor Selection -->
                 <StackPanel Margin="0,0,0,12">
-                    <TextBlock Text="Màn hình mục tiêu (Target Monitor)" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
-                    <ComboBox x:Name="CmbTargetMonitor" Padding="8,6" Background="#2D2D2D" Foreground="#000000" />
+                    <TextBlock Text="{DynamicResource Str_TargetMonitorLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
+                    <ComboBox x:Name="CmbTargetMonitor" Padding="8,6" SelectionChanged="CmbTargetMonitor_SelectionChanged" />
                 </StackPanel>
 
                 <!-- Target Zone Selection -->
                 <StackPanel Margin="0,0,0,12">
-                    <TextBlock Text="Gắn cố định vào Zone mục tiêu" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
-                    <ComboBox x:Name="CmbTargetZone" Padding="8,6" Background="#2D2D2D" Foreground="#000000">
-                        <ComboBoxItem Content="Toàn màn hình (Fullscreen)" Tag="0" />
-                        <ComboBoxItem Content="Vùng 1 (Bên Trái)" Tag="1" />
-                        <ComboBoxItem Content="Vùng 2 (Bên Phải - Chuẩn 2K)" Tag="2" IsSelected="True" />
-                    </ComboBox>
+                    <TextBlock Text="{DynamicResource Str_DockTargetZoneLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
+                    <ComboBox x:Name="CmbTargetZone" Padding="8,6" />
                 </StackPanel>
 
                 <!-- Checkboxes -->
                 <StackPanel Margin="0,4,0,0">
                     <CheckBox x:Name="ChkAutoApply"
-                              Content="Tự động áp dụng Borderless khi ứng dụng khởi chạy"
+                              Content="{DynamicResource Str_AutoApply}"
                               IsChecked="True" />
                     <CheckBox x:Name="ChkCoverTaskbar"
-                              Content="Đè tràn qua thanh Taskbar (Chiều cao tối đa)"
+                              Content="{DynamicResource Str_CoverTaskbar}"
                               IsChecked="True" />
                     <CheckBox x:Name="ChkShowFloatingCaption"
-                              Content="Hiển thị cụm nút [- [] X] nổi thông minh ở góc trên"
+                              Content="{DynamicResource Str_FloatingCaption}"
                               IsChecked="True" />
                     <CheckBox x:Name="ChkRemoveRoundedCorners"
-                              Content="Tắt góc bo tròn của Windows 11"
+                              Content="{DynamicResource Str_RemoveCorners}"
                               IsChecked="True" />
                 </StackPanel>
             </StackPanel>
@@ -104,14 +103,14 @@
         <!-- Actions -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
             <Button x:Name="BtnCancel"
-                    Content="Hủy"
+                    Content="{DynamicResource Str_BtnCancel}"
                     Width="85"
                     Padding="10,6"
                     Margin="0,0,10,0"
                     Click="BtnCancel_Click" />
             <Button x:Name="BtnSave"
-                    Content="Lưu cấu hình"
-                    Width="110"
+                    Content="{DynamicResource Str_BtnAddToList}"
+                    Width="130"
                     Padding="10,6"
                     Background="#0078D4"
                     Foreground="#FFFFFF"

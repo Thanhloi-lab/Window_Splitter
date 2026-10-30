@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -12,6 +11,7 @@ namespace WindowsSplitter.Core
         public const int GWL_EXSTYLE = -20;
 
         // Window Styles
+        public const uint WS_OVERLAPPED = 0x00000000;
         public const uint WS_CAPTION = 0x00C00000;
         public const uint WS_THICKFRAME = 0x00040000;
         public const uint WS_MINIMIZEBOX = 0x00020000;
@@ -21,6 +21,21 @@ namespace WindowsSplitter.Core
         public const uint WS_DLGFRAME = 0x00400000;
         public const uint WS_VISIBLE = 0x10000000;
         public const uint WS_POPUP = 0x80000000;
+        public const uint WS_OVERLAPPEDWINDOW = (WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX);
+
+        // RedrawWindow Flags
+        public const uint RDW_INVALIDATE = 0x0001;
+        public const uint RDW_INTERNALPAINT = 0x0002;
+        public const uint RDW_ERASE = 0x0004;
+        public const uint RDW_VALIDATE = 0x0008;
+        public const uint RDW_NOINTERNALPAINT = 0x0010;
+        public const uint RDW_NOERASE = 0x0020;
+        public const uint RDW_NOCHILDREN = 0x0040;
+        public const uint RDW_ALLCHILDREN = 0x0080;
+        public const uint RDW_UPDATENOW = 0x0100;
+        public const uint RDW_ERASENOW = 0x0200;
+        public const uint RDW_FRAME = 0x0400;
+        public const uint RDW_NOFRAME = 0x0800;
 
         // Extended Window Styles
         public const uint WS_EX_TOPMOST = 0x00000008;
@@ -44,6 +59,7 @@ namespace WindowsSplitter.Core
         public static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
         public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        public static readonly IntPtr HWND_BROADCAST = new IntPtr(0xFFFF);
 
         // ShowWindow Commands
         public const int SW_HIDE = 0;
@@ -194,9 +210,16 @@ namespace WindowsSplitter.Core
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern uint RegisterWindowMessage(string lpString);
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

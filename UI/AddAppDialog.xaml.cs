@@ -1,9 +1,7 @@
-using System;
+using Microsoft.Win32;
 using System.IO;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using Microsoft.Win32;
 using WindowsSplitter.Core;
 using WindowsSplitter.Models;
 
@@ -11,13 +9,17 @@ namespace WindowsSplitter.UI
 {
     public partial class AddAppDialog : Window
     {
+        private readonly AppSettings _settings;
         public BorderlessAppRule? ResultRule { get; private set; }
 
-        public AddAppDialog(string initialExeName = "", string initialTitle = "", string initialMonitor = "")
+        public AddAppDialog(string initialExeName = "", string initialTitle = "", string initialMonitor = "", int initialZoneId = 2)
         {
             InitializeComponent();
 
+            _settings = AppSettings.Load();
+
             PopulateMonitorList(initialMonitor);
+            PopulateZoneList(initialZoneId);
 
             if (!string.IsNullOrEmpty(initialExeName))
             {
@@ -38,10 +40,14 @@ namespace WindowsSplitter.UI
         {
             CmbTargetMonitor.Items.Clear();
 
-            var autoItem = new ComboBoxItem { Content = "🖥️ Tự động (Theo cửa sổ đang mở)", Tag = "" };
+            bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
+            string autoText = isEn ? "🖥️ Auto (Follow active window)" : "🖥️ Tự động (Theo cửa sổ đang mở)";
+            string primaryText = isEn ? "🖥️ Primary Monitor" : "🖥️ Màn hình chính (Primary Monitor)";
+
+            var autoItem = new ComboBoxItem { Content = autoText, Tag = "" };
             CmbTargetMonitor.Items.Add(autoItem);
 
-            var primaryItem = new ComboBoxItem { Content = "🖥️ Màn hình chính (Primary Monitor)", Tag = "primary" };
+            var primaryItem = new ComboBoxItem { Content = primaryText, Tag = "primary" };
             CmbTargetMonitor.Items.Add(primaryItem);
 
             foreach (var m in MonitorManager.Instance.Monitors)
@@ -60,12 +66,79 @@ namespace WindowsSplitter.UI
             CmbTargetMonitor.SelectedItem = match ?? autoItem;
         }
 
+        private void CmbTargetMonitor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            int currentSelectedZone = 2;
+            if (CmbTargetZone.SelectedItem is ComboBoxItem item && int.TryParse(item.Tag?.ToString(), out int parsed))
+            {
+                currentSelectedZone = parsed;
+            }
+            PopulateZoneList(currentSelectedZone);
+        }
+
+        private void PopulateZoneList(int targetZoneId)
+        {
+            CmbTargetZone.Items.Clear();
+
+            // Item 0: Fullscreen
+            string fsLabel = LocalizationManager.GetString("Str_ZoneFullscreen");
+            var fullscreenItem = new ComboBoxItem { Content = fsLabel, Tag = 0 };
+            CmbTargetZone.Items.Add(fullscreenItem);
+
+            // Determine target monitor to get actual zones
+            MonitorInfoItem? targetMonitor = null;
+            if (CmbTargetMonitor.SelectedItem is ComboBoxItem monItem && monItem.Tag != null)
+            {
+                string dev = monItem.Tag.ToString() ?? "";
+                if (dev.Equals("primary", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetMonitor = MonitorManager.Instance.GetPrimaryMonitor();
+                }
+                else if (!string.IsNullOrEmpty(dev))
+                {
+                    targetMonitor = MonitorManager.Instance.GetMonitorByDevice(dev);
+                }
+            }
+
+            targetMonitor ??= MonitorManager.Instance.GetPrimaryMonitor() ?? new MonitorInfoItem();
+            var preset = _settings.GetPresetForMonitor(targetMonitor);
+
+            ComboBoxItem? selectedItem = null;
+            if (preset != null && preset.Zones.Count > 0)
+            {
+                foreach (var z in preset.Zones)
+                {
+                    var zoneItem = new ComboBoxItem
+                    {
+                        Content = $"{z.LocalizedName} ({z.Width} × {z.Height} px)",
+                        Tag = z.Id
+                    };
+                    CmbTargetZone.Items.Add(zoneItem);
+
+                    if (z.Id == targetZoneId)
+                    {
+                        selectedItem = zoneItem;
+                    }
+                }
+            }
+
+            if (targetZoneId == 0)
+            {
+                CmbTargetZone.SelectedItem = fullscreenItem;
+            }
+            else
+            {
+                CmbTargetZone.SelectedItem = selectedItem ?? CmbTargetZone.Items.OfType<ComboBoxItem>().Skip(1).FirstOrDefault() ?? fullscreenItem;
+            }
+        }
+
         private void BtnBrowse_Click(object sender, RoutedEventArgs e)
         {
+            bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
             var ofd = new OpenFileDialog
             {
-                Filter = "Tệp thực thi (*.exe)|*.exe|Tất cả tệp (*.*)|*.*",
-                Title = "Chọn file thực thi của Game hoặc Ứng dụng"
+                Filter = isEn ? "Executable files (*.exe)|*.exe|All files (*.*)|*.*" : "Tệp thực thi (*.exe)|*.exe|Tất cả tệp (*.*)|*.*",
+                Title = isEn ? "Select Game or Application Executable" : "Chọn file thực thi của Game hoặc Ứng dụng"
             };
 
             if (ofd.ShowDialog(this) == true)
@@ -83,7 +156,11 @@ namespace WindowsSplitter.UI
             string processName = TxtProcessName.Text.Trim();
             if (string.IsNullOrWhiteSpace(processName))
             {
-                MessageBox.Show(this, "Vui lòng nhập tên file thực thi (.exe)!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
+                MessageBox.Show(this, 
+                    isEn ? "Please enter an executable file name (.exe)!" : "Vui lòng nhập tên file thực thi (.exe)!", 
+                    LocalizationManager.GetString("Msg_MissingInfo"), 
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 

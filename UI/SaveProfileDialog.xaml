@@ -1,0 +1,98 @@
+<Window x:Class="WindowsSplitter.UI.SaveProfileDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource Str_SaveProfileTitle}"
+        Width="480"
+        Height="440"
+        MinHeight="380"
+        MinWidth="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResizeWithGrip"
+        Background="#202020"
+        Foreground="#FFFFFF">
+
+    <Window.Resources>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#2D2D2D" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#444444" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="{DynamicResource Str_SaveProfileHeader}"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       Foreground="#4CC2FF" />
+            <TextBlock Text="{DynamicResource Str_SaveProfileDesc}"
+                       FontSize="12"
+                       Foreground="#A0A0A0"
+                       Margin="0,4,0,0"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Form Fields with ScrollViewer -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
+            <StackPanel Margin="0,0,8,0">
+                <!-- Profile Name -->
+                <StackPanel Margin="0,0,0,12">
+                    <TextBlock Text="{DynamicResource Str_ProfileNameLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
+                    <TextBox x:Name="TxtProfileName" />
+                </StackPanel>
+
+                <!-- Description -->
+                <StackPanel Margin="0,0,0,14">
+                    <TextBlock Text="{DynamicResource Str_ProfileDescLabel}" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,0,0,4" />
+                    <TextBox x:Name="TxtProfileDesc" />
+                </StackPanel>
+
+                <!-- Dimension Preview Card -->
+                <Border Background="#161616" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,2,0,4">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Str_DimensionsToSave}" FontSize="11" FontWeight="SemiBold" Foreground="#888888" Margin="0,0,0,4" />
+                        <TextBlock x:Name="TxtDimensionsSummary" Text="Zone 1: ... | Zone 2: ..." FontSize="12" Foreground="#4CC2FF" TextWrapping="Wrap" />
+                        <TextBlock x:Name="TxtMonitorSummary" Text="Monitor: ..." FontSize="11" Foreground="#AAAAAA" Margin="0,4,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="BtnCancel"
+                    Content="{DynamicResource Str_BtnCancel}"
+                    Width="90"
+                    Padding="10,6"
+                    Background="#333333"
+                    Foreground="#CCCCCC"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    IsCancel="True"
+                    Click="BtnCancel_Click"
+                    Margin="0,0,10,0" />
+
+            <Button x:Name="BtnSave"
+                    Content="{DynamicResource Str_BtnSave}"
+                    Width="110"
+                    Padding="10,6"
+                    Background="#0078D4"
+                    Foreground="#FFFFFF"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    IsDefault="True"
+                    Click="BtnSave_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

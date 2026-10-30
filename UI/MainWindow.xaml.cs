@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
-using System.Linq;
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,34 +19,27 @@ namespace WindowsSplitter.UI
 
         private List<RunningWindowItem> _allRunningWindows = new();
         private MonitorInfoItem? _currentSelectedMonitor;
-        private bool _isUpdatingUi = false;
+        private bool _isUpdatingUi = true;
         private bool _isReallyExiting = false;
 
         public MainWindow()
         {
-            InitializeComponent();
+            _isUpdatingUi = true;
 
             _settings = AppSettings.Load();
             _zoneEngine = new ZoneEngine(_settings);
-            _borderlessEngine = new BorderlessEngine(_settings);
+            _borderlessEngine = new BorderlessEngine(_settings, _zoneEngine);
             _winEventHookService = new WinEventHookService(_settings, _borderlessEngine, _zoneEngine);
             _keyboardHook = new LowLevelKeyboardHook
             {
                 OverrideWindowsSnap = _settings.OverrideWindowsSnap
             };
 
-            // Setup Admin indicator
-            bool isAdmin = CheckIfRunningAsAdmin();
-            if (!isAdmin)
-            {
-                BadgeAdmin.Background = System.Windows.Media.Brushes.DarkRed;
-                BadgeAdmin.BorderBrush = System.Windows.Media.Brushes.Red;
-                if (BadgeAdmin.Child is TextBlock tb)
-                {
-                    tb.Text = "⚠️ Non-Admin Mode (Re-run as Admin for Games)";
-                    tb.Foreground = System.Windows.Media.Brushes.Yellow;
-                }
-            }
+            InitializeComponent();
+
+            // Setup Admin indicator & Language events
+            UpdateAdminIndicator();
+            LocalizationManager.LanguageChanged += OnLanguageChanged;
 
             // Setup Hotkey Snap Handler: Win + Arrow (Zones)
             _keyboardHook.HotKeyPressed += (direction) =>
@@ -60,14 +49,20 @@ namespace WindowsSplitter.UI
                     IntPtr activeHwnd = NativeMethods.GetForegroundWindow();
                     if (activeHwnd != IntPtr.Zero)
                     {
+                        // 1. Snap window according to pressed arrow direction
+                        _zoneEngine.SnapWindow(activeHwnd, direction);
+
+                        // 2. If it is already borderless or has a whitelist rule, re-apply borderless inside the snapped zone
                         var rule = _borderlessEngine.FindRuleForWindow(activeHwnd);
-                        if (rule != null && !_borderlessEngine.IsBorderless(activeHwnd))
+                        var curZone = _zoneEngine.GetWindowCurrentZone(activeHwnd);
+
+                        if (_borderlessEngine.IsBorderless(activeHwnd))
                         {
-                            _borderlessEngine.ApplyBorderless(activeHwnd, rule);
+                            _borderlessEngine.ApplyBorderless(activeHwnd, rule, curZone);
                         }
-                        else
+                        else if (rule != null && rule.AutoApply)
                         {
-                            _zoneEngine.SnapWindow(activeHwnd, direction);
+                            _borderlessEngine.ApplyBorderless(activeHwnd, rule, curZone);
                         }
                     }
                 });
@@ -84,6 +79,13 @@ namespace WindowsSplitter.UI
                     if (activeHwnd != IntPtr.Zero)
                     {
                         _zoneEngine.MoveWindowToMonitor(activeHwnd, direction);
+
+                        if (_borderlessEngine.IsBorderless(activeHwnd))
+                        {
+                            var curZone = _zoneEngine.GetWindowCurrentZone(activeHwnd);
+                            var rule = _borderlessEngine.FindRuleForWindow(activeHwnd);
+                            _borderlessEngine.ApplyBorderless(activeHwnd, rule, curZone);
+                        }
                     }
                 });
             };
@@ -112,6 +114,18 @@ namespace WindowsSplitter.UI
             RefreshMonitorSelector();
             LoadSettingsToUi();
             RefreshRunningAppsList();
+
+            _isUpdatingUi = false;
+            UpdateZoneVisualDisplay();
+
+            // Check if launched with autostart/minimized flags or setting
+            string[] args = Environment.GetCommandLineArgs();
+            bool isAutoStart = args.Any(a => a.Equals("--autostart", StringComparison.OrdinalIgnoreCase) || a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+            if (isAutoStart || _settings.StartMinimizedToTray)
+            {
+                this.WindowState = WindowState.Minimized;
+                this.Hide();
+            }
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -126,6 +140,22 @@ namespace WindowsSplitter.UI
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
+            if (App.WM_SHOW_SPLITTER != 0 && msg == (int)App.WM_SHOW_SPLITTER)
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    this.Show();
+                    if (this.WindowState == WindowState.Minimized)
+                    {
+                        this.WindowState = WindowState.Normal;
+                    }
+                    this.Activate();
+                    this.Focus();
+                });
+                handled = true;
+                return IntPtr.Zero;
+            }
+
             if (msg == (int)NativeMethods.WM_DISPLAYCHANGE)
             {
                 // Topology changed: re-scan all monitors dynamically
@@ -154,8 +184,36 @@ namespace WindowsSplitter.UI
             }
         }
 
+        private void UpdateAdminIndicator()
+        {
+            bool isAdmin = CheckIfRunningAsAdmin();
+            if (!isAdmin)
+            {
+                BadgeAdmin.Background = System.Windows.Media.Brushes.DarkRed;
+                BadgeAdmin.BorderBrush = System.Windows.Media.Brushes.Red;
+                TxtBadgeAdmin.Text = LocalizationManager.GetString("Str_BadgeNonAdmin");
+                TxtBadgeAdmin.Foreground = System.Windows.Media.Brushes.Yellow;
+            }
+            else
+            {
+                BadgeAdmin.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#1D3B26")!;
+                BadgeAdmin.BorderBrush = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#2D6A3E")!;
+                TxtBadgeAdmin.Text = LocalizationManager.GetString("Str_BadgeAdmin");
+                TxtBadgeAdmin.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#57D97A")!;
+            }
+        }
+
+        private void UpdateHookStatusText()
+        {
+            string onText = LocalizationManager.GetString("Str_BadgeHookEnabled");
+            string offText = LocalizationManager.GetString("Str_BadgeHookDisabled");
+            TxtHookStatus.Text = _settings.OverrideWindowsSnap ? onText : offText;
+            MenuHookStatus.IsChecked = _settings.OverrideWindowsSnap;
+        }
+
         private void RefreshMonitorSelector()
         {
+            bool wasUpdating = _isUpdatingUi;
             _isUpdatingUi = true;
 
             var monitors = MonitorManager.Instance.Monitors;
@@ -167,12 +225,14 @@ namespace WindowsSplitter.UI
             if (MonitorManager.Instance.IsDuplicateMode)
             {
                 BadgeDuplicateMode.Visibility = Visibility.Visible;
-                TxtMonitorTopologyTag.Text = "Nhân bản (Duplicate Mode)";
+                TxtMonitorTopologyTag.Text = LocalizationManager.GetString("Msg_ModeDuplicate");
             }
             else
             {
                 BadgeDuplicateMode.Visibility = Visibility.Collapsed;
-                TxtMonitorTopologyTag.Text = monitors.Count > 1 ? $"Mở rộng ({monitors.Count} Màn hình - Extend)" : "Màn hình đơn (Single Display)";
+                TxtMonitorTopologyTag.Text = monitors.Count > 1 
+                    ? LocalizationManager.GetString("Msg_MultiDisplayExtend", monitors.Count) 
+                    : LocalizationManager.GetString("Msg_SingleDisplay");
             }
 
             // Select primary or first
@@ -180,84 +240,186 @@ namespace WindowsSplitter.UI
             CmbMonitors.SelectedItem = target;
             _currentSelectedMonitor = target;
 
-            _isUpdatingUi = false;
+            _isUpdatingUi = wasUpdating;
+        }
+
+        private void RefreshPresetsForCurrentMonitor(string? selectedIdToKeep = null)
+        {
+            if (_currentSelectedMonitor == null || _settings == null) return;
+
+            var config = _settings.GetOrCreateMonitorConfig(_currentSelectedMonitor.DeviceName, _currentSelectedMonitor.Width, _currentSelectedMonitor.Height);
+
+            bool wasUpdating = _isUpdatingUi;
+            _isUpdatingUi = true;
+
+            string targetId = selectedIdToKeep ?? config.SelectedPresetId;
+
+            CmbPresets.ItemsSource = null;
+            CmbPresets.ItemsSource = config.Presets;
+            CmbPresets.DisplayMemberPath = "DisplayName";
+            CmbPresets.SelectedValuePath = "Id";
+            CmbPresets.SelectedValue = targetId;
+
+            if (CmbPresets.SelectedIndex < 0 && config.Presets.Count > 0)
+            {
+                CmbPresets.SelectedIndex = 0;
+                config.SelectedPresetId = config.Presets[0].Id;
+            }
+
+            _isUpdatingUi = wasUpdating;
         }
 
         private void CmbMonitors_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isUpdatingUi) return;
+            if (_isUpdatingUi || _settings == null) return;
 
             if (CmbMonitors.SelectedItem is MonitorInfoItem monitor)
             {
                 _currentSelectedMonitor = monitor;
                 TxtMonitorDpiBadge.Text = $"DPI: {(int)Math.Round(monitor.DpiScaleX * 100)}%";
 
-                var config = _settings.GetOrCreateMonitorConfig(monitor.DeviceName, monitor.Width, monitor.Height);
-
-                _isUpdatingUi = true;
-                CmbPresets.ItemsSource = null;
-                CmbPresets.ItemsSource = config.Presets;
-                CmbPresets.DisplayMemberPath = "Name";
-                CmbPresets.SelectedValuePath = "Id";
-                CmbPresets.SelectedValue = config.SelectedPresetId;
-
-                if (CmbPresets.SelectedIndex < 0 && config.Presets.Count > 0)
-                {
-                    CmbPresets.SelectedIndex = 0;
-                }
-                _isUpdatingUi = false;
-
+                RefreshPresetsForCurrentMonitor();
                 UpdateZoneVisualDisplay();
             }
         }
 
         private void LoadSettingsToUi()
         {
+            bool wasUpdating = _isUpdatingUi;
             _isUpdatingUi = true;
 
-            // Behavior & Multi-monitor options
-            ChkOverrideSnap.IsChecked = _settings.OverrideWindowsSnap;
-            ChkWinShiftMonitorMove.IsChecked = _settings.EnableWinShiftMonitorMove;
-            ChkCrossMonitorWrap.IsChecked = _settings.EnableCrossMonitorWrap;
-            ChkInvisibleBorderComp.IsChecked = _settings.DwmInvisibleBorderCompensation;
-            ChkDisableRoundedCorners.IsChecked = _settings.DisableWin11RoundedCorners;
-            ChkShowZoneOverlay.IsChecked = _settings.ShowZoneOverlayOnSnap;
-            ChkStartMinimized.IsChecked = _settings.StartMinimizedToTray;
-
-            if (_currentSelectedMonitor != null)
+            if (_settings != null)
             {
-                var config = _settings.GetOrCreateMonitorConfig(_currentSelectedMonitor.DeviceName, _currentSelectedMonitor.Width, _currentSelectedMonitor.Height);
-                CmbPresets.ItemsSource = config.Presets;
-                CmbPresets.DisplayMemberPath = "Name";
-                CmbPresets.SelectedValuePath = "Id";
-                CmbPresets.SelectedValue = config.SelectedPresetId;
+                // Behavior & Multi-monitor options
+                ChkOverrideSnap.IsChecked = _settings.OverrideWindowsSnap;
+                ChkWinShiftMonitorMove.IsChecked = _settings.EnableWinShiftMonitorMove;
+                ChkCrossMonitorWrap.IsChecked = _settings.EnableCrossMonitorWrap;
+                ChkInvisibleBorderComp.IsChecked = _settings.DwmInvisibleBorderCompensation;
+                ChkDisableRoundedCorners.IsChecked = _settings.DisableWin11RoundedCorners;
+                ChkShowZoneOverlay.IsChecked = _settings.ShowZoneOverlayOnSnap;
+                ChkStartWithWindows.IsChecked = _settings.StartWithWindows || StartupManager.IsRunAtStartupEnabled();
+                ChkStartMinimized.IsChecked = _settings.StartMinimizedToTray;
+                ChkCloseToTray.IsChecked = _settings.CloseToTray;
+                ChkDefaultCoverTaskbar.IsChecked = _settings.DefaultCoverTaskbar;
+
+                RefreshPresetsForCurrentMonitor();
+
+                // Whitelist
+                RefreshWhitelistUi();
+
+                // Language & Status UI
+                SyncLanguageSelectorUi();
+                UpdateHookStatusText();
+                UpdateAdminIndicator();
             }
 
-            // Whitelist
-            RefreshWhitelistUi();
+            _isUpdatingUi = wasUpdating;
+        }
 
-            _isUpdatingUi = false;
-            UpdateZoneVisualDisplay();
+        private void CmbLanguage_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isUpdatingUi || _settings == null) return;
+            if (sender is ComboBox cmb && cmb.SelectedItem is ComboBoxItem item && item.Tag != null)
+            {
+                string selectedLang = item.Tag.ToString() ?? LocalizationManager.LangEnglish;
+                if (selectedLang != LocalizationManager.CurrentLanguage)
+                {
+                    _settings.Language = selectedLang;
+                    _settings.Save();
+                    LocalizationManager.SetLanguage(selectedLang, true);
+                }
+            }
+        }
+
+        private void OnLanguageChanged()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                bool wasUpdating = _isUpdatingUi;
+                _isUpdatingUi = true;
+
+                SyncLanguageSelectorUi();
+                UpdateAdminIndicator();
+                UpdateHookStatusText();
+                RefreshMonitorSelector();
+                RefreshPresetsForCurrentMonitor();
+                UpdateZoneVisualDisplay();
+                RefreshRunningAppsList();
+                RefreshWhitelistUi();
+
+                _isUpdatingUi = wasUpdating;
+            });
+        }
+
+        private void SyncLanguageSelectorUi()
+        {
+            string currentLang = LocalizationManager.CurrentLanguage;
+            SelectLanguageInComboBox(CmbLanguageHeader, currentLang);
+            SelectLanguageInComboBox(CmbLanguageSettings, currentLang);
+        }
+
+        private static void SelectLanguageInComboBox(ComboBox? cmb, string langCode)
+        {
+            if (cmb == null) return;
+            foreach (var item in cmb.Items.OfType<ComboBoxItem>())
+            {
+                if (string.Equals(item.Tag?.ToString(), langCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    cmb.SelectedItem = item;
+                    break;
+                }
+            }
         }
 
         private void RefreshWhitelistUi()
         {
             ListWhitelist.ItemsSource = null;
-            ListWhitelist.ItemsSource = _settings.BorderlessWhitelist;
+            if (_settings != null)
+            {
+                ListWhitelist.ItemsSource = _settings.BorderlessWhitelist;
+            }
         }
 
         private ZonePreset? GetCurrentMonitorActivePreset()
         {
+            if (_settings == null) return null;
             if (_currentSelectedMonitor == null) return _settings.GetActivePreset();
             return _settings.GetPresetForMonitor(_currentSelectedMonitor);
         }
 
         private void UpdateZoneVisualDisplay()
         {
+            if (_settings == null) return;
             var preset = GetCurrentMonitorActivePreset();
             if (preset == null || preset.Zones.Count == 0) return;
 
             TxtPresetDescription.Text = preset.Description;
+
+            // Visual feedback: Default Template vs Custom Profile
+            if (preset.IsDefault)
+            {
+                TxtPresetTypeBadge.Text = LocalizationManager.GetString("Str_BadgeDefault");
+                TxtPresetTypeBadge.Foreground = System.Windows.Media.Brushes.LightGray;
+                BadgePresetType.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#333333")!;
+
+                BtnDeleteProfile.Visibility = Visibility.Collapsed;
+                BtnSaveZoneSettings.IsEnabled = false;
+                BtnSaveZoneSettings.Content = LocalizationManager.GetString("Str_BtnCannotOverwriteDefault");
+                BtnSaveZoneSettings.ToolTip = LocalizationManager.GetString("Str_SavePresetHintDefault");
+                TxtSavePresetHint.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                TxtPresetTypeBadge.Text = LocalizationManager.GetString("Str_BadgeCustom");
+                TxtPresetTypeBadge.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#81C784")!;
+                BadgePresetType.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#1B5E20")!;
+
+                BtnDeleteProfile.Visibility = Visibility.Visible;
+                BtnSaveZoneSettings.IsEnabled = true;
+                BtnSaveZoneSettings.Content = LocalizationManager.GetString("Str_BtnUpdateCurrentProfile");
+                BtnSaveZoneSettings.ToolTip = LocalizationManager.GetString("Str_BtnUpdateCurrentProfileTip");
+                TxtSavePresetHint.Visibility = Visibility.Collapsed;
+            }
 
             if (preset.Zones.Count >= 2)
             {
@@ -280,7 +442,8 @@ namespace WindowsSplitter.UI
                     totalW = _currentSelectedMonitor.Width;
                 }
 
-                SliderZoneSplit.Maximum = Math.Max(totalW - 100, 1000);
+                SliderZoneSplit.Minimum = 50;
+                SliderZoneSplit.Maximum = Math.Max(100, totalW - 50);
                 SliderZoneSplit.Value = z1.Width;
 
                 double pct1 = (z1.Width / (double)totalW) * 100.0;
@@ -297,7 +460,7 @@ namespace WindowsSplitter.UI
 
         private void CmbPresets_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isUpdatingUi) return;
+            if (_isUpdatingUi || _settings == null) return;
 
             if (CmbPresets.SelectedItem is ZonePreset preset && _currentSelectedMonitor != null)
             {
@@ -310,7 +473,7 @@ namespace WindowsSplitter.UI
 
         private void SliderZoneSplit_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (_isUpdatingUi) return;
+            if (_isUpdatingUi || _settings == null) return;
 
             var preset = GetCurrentMonitorActivePreset();
             if (preset == null || preset.Zones.Count < 2) return;
@@ -319,11 +482,16 @@ namespace WindowsSplitter.UI
             int totalWidth = _currentSelectedMonitor?.Width ?? (preset.Zones[0].Width + preset.Zones[1].Width);
             if (totalWidth <= 0) totalWidth = preset.ScreenWidth;
 
-            int newZ2Width = Math.Max(100, totalWidth - newZ1Width);
+            int newZ2Width = Math.Max(50, totalWidth - newZ1Width);
 
-            preset.Zones[0].Width = newZ1Width;
-            preset.Zones[1].X = newZ1Width;
-            preset.Zones[1].Width = newZ2Width;
+            // If it is a custom profile, update in-memory immediately.
+            // If it is a default preset, do NOT mutate default preset in-memory, just update UI preview!
+            if (!preset.IsDefault)
+            {
+                preset.Zones[0].Width = newZ1Width;
+                preset.Zones[1].X = newZ1Width;
+                preset.Zones[1].Width = newZ2Width;
+            }
 
             _isUpdatingUi = true;
             TxtZone1W.Text = newZ1Width.ToString();
@@ -344,7 +512,7 @@ namespace WindowsSplitter.UI
 
         private void ZoneInput_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (_isUpdatingUi) return;
+            if (_isUpdatingUi || _settings == null) return;
 
             var preset = GetCurrentMonitorActivePreset();
             if (preset == null || preset.Zones.Count < 2) return;
@@ -358,15 +526,19 @@ namespace WindowsSplitter.UI
                 int.TryParse(TxtZone2W.Text, out int z2w) &&
                 int.TryParse(TxtZone2H.Text, out int z2h))
             {
-                preset.Zones[0].X = z1x;
-                preset.Zones[0].Y = z1y;
-                preset.Zones[0].Width = z1w;
-                preset.Zones[0].Height = z1h;
+                // Only mutate in-memory if custom profile!
+                if (!preset.IsDefault)
+                {
+                    preset.Zones[0].X = z1x;
+                    preset.Zones[0].Y = z1y;
+                    preset.Zones[0].Width = z1w;
+                    preset.Zones[0].Height = z1h;
 
-                preset.Zones[1].X = z2x;
-                preset.Zones[1].Y = z2y;
-                preset.Zones[1].Width = z2w;
-                preset.Zones[1].Height = z2h;
+                    preset.Zones[1].X = z2x;
+                    preset.Zones[1].Y = z2y;
+                    preset.Zones[1].Width = z2w;
+                    preset.Zones[1].Height = z2h;
+                }
 
                 ColVisualZone1.Width = new GridLength(Math.Max(1, z1w), GridUnitType.Star);
                 ColVisualZone2.Width = new GridLength(Math.Max(1, z2w), GridUnitType.Star);
@@ -376,10 +548,143 @@ namespace WindowsSplitter.UI
             }
         }
 
+        private void BtnSaveAsNewProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentSelectedMonitor == null || _settings == null) return;
+
+            var config = _settings.GetOrCreateMonitorConfig(_currentSelectedMonitor.DeviceName, _currentSelectedMonitor.Width, _currentSelectedMonitor.Height);
+            var activePreset = GetCurrentMonitorActivePreset();
+
+            // Read current values from textboxes
+            int z1x = int.TryParse(TxtZone1X.Text, out int parsedZ1X) ? parsedZ1X : 0;
+            int z1y = int.TryParse(TxtZone1Y.Text, out int parsedZ1Y) ? parsedZ1Y : 0;
+            int z1w = int.TryParse(TxtZone1W.Text, out int parsedZ1W) ? parsedZ1W : (int)(config.ScreenWidth / 3.0);
+            int z1h = int.TryParse(TxtZone1H.Text, out int parsedZ1H) ? parsedZ1H : config.ScreenHeight;
+
+            int z2x = int.TryParse(TxtZone2X.Text, out int parsedZ2X) ? parsedZ2X : z1w;
+            int z2y = int.TryParse(TxtZone2Y.Text, out int parsedZ2Y) ? parsedZ2Y : 0;
+            int z2w = int.TryParse(TxtZone2W.Text, out int parsedZ2W) ? parsedZ2W : (config.ScreenWidth - z1w);
+            int z2h = int.TryParse(TxtZone2H.Text, out int parsedZ2H) ? parsedZ2H : config.ScreenHeight;
+
+            var zones = new List<Zone>
+            {
+                new Zone(1, "Vùng 1 (Trái)", z1x, z1y, z1w, z1h),
+                new Zone(2, "Vùng 2 (Phải)", z2x, z2y, z2w, z2h)
+            };
+
+            string defaultName = activePreset != null && !activePreset.IsDefault
+                ? $"{activePreset.Name} (Copy)"
+                : $"Profile {z1w}x{z2w}";
+
+            var dlg = new SaveProfileDialog(defaultName, config.ScreenWidth, config.ScreenHeight, zones, _currentSelectedMonitor.FriendlyName)
+            {
+                Owner = this
+            };
+
+            if (dlg.ShowDialog() == true && dlg.ResultPreset != null)
+            {
+                config.Presets.Add(dlg.ResultPreset);
+                config.SelectedPresetId = dlg.ResultPreset.Id;
+                _settings.Save();
+
+                RefreshPresetsForCurrentMonitor(dlg.ResultPreset.Id);
+                UpdateZoneVisualDisplay();
+
+                string msg = LocalizationManager.GetString("Msg_ProfileSaveSuccess", dlg.ResultPreset.Name);
+                string title = LocalizationManager.GetString("Msg_Notice");
+                MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
         private void BtnSaveZoneSettings_Click(object sender, RoutedEventArgs e)
         {
+            if (_settings == null || _currentSelectedMonitor == null) return;
+            var preset = GetCurrentMonitorActivePreset();
+            if (preset == null) return;
+
+            if (preset.IsDefault)
+            {
+                // Cannot overwrite default preset! Redirect to Save as new profile
+                BtnSaveAsNewProfile_Click(sender, e);
+                return;
+            }
+
+            // Save changes to custom profile
+            if (int.TryParse(TxtZone1X.Text, out int z1x) &&
+                int.TryParse(TxtZone1Y.Text, out int z1y) &&
+                int.TryParse(TxtZone1W.Text, out int z1w) &&
+                int.TryParse(TxtZone1H.Text, out int z1h) &&
+                int.TryParse(TxtZone2X.Text, out int z2x) &&
+                int.TryParse(TxtZone2Y.Text, out int z2y) &&
+                int.TryParse(TxtZone2W.Text, out int z2w) &&
+                int.TryParse(TxtZone2H.Text, out int z2h))
+            {
+                if (preset.Zones.Count >= 2)
+                {
+                    preset.Zones[0].X = z1x;
+                    preset.Zones[0].Y = z1y;
+                    preset.Zones[0].Width = z1w;
+                    preset.Zones[0].Height = z1h;
+
+                    preset.Zones[1].X = z2x;
+                    preset.Zones[1].Y = z2y;
+                    preset.Zones[1].Width = z2w;
+                    preset.Zones[1].Height = z2h;
+                }
+
+                _settings.Save();
+                RefreshPresetsForCurrentMonitor(preset.Id);
+                UpdateZoneVisualDisplay();
+
+                string msg = LocalizationManager.GetString("Msg_ProfileUpdateSuccess", preset.Name);
+                string title = LocalizationManager.GetString("Msg_Notice");
+                MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void BtnDeleteProfile_Click(object sender, RoutedEventArgs e)
+        {
+            if (_settings == null || _currentSelectedMonitor == null) return;
+            var config = _settings.GetOrCreateMonitorConfig(_currentSelectedMonitor.DeviceName, _currentSelectedMonitor.Width, _currentSelectedMonitor.Height);
+            var preset = GetCurrentMonitorActivePreset();
+
+            if (preset == null) return;
+
+            if (preset.IsDefault)
+            {
+                MessageBox.Show(this, LocalizationManager.GetString("Msg_CannotDeleteDefault"), LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string confirmMsg = LocalizationManager.GetString("Msg_ConfirmDeleteProfile", preset.Name);
+            string confirmTitle = LocalizationManager.GetString("Msg_ConfirmDeleteTitle");
+            var confirm = MessageBox.Show(this, confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm == MessageBoxResult.Yes)
+            {
+                config.Presets.Remove(preset);
+                var fallback = config.Presets.FirstOrDefault();
+                config.SelectedPresetId = fallback?.Id ?? "";
+                _settings.Save();
+
+                RefreshPresetsForCurrentMonitor(fallback?.Id);
+                UpdateZoneVisualDisplay();
+
+                MessageBox.Show(this, LocalizationManager.GetString("Msg_ProfileDeleteSuccess", preset.Name), LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ChkStartWithWindows_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingUi || _settings == null) return;
+            bool enable = ChkStartWithWindows.IsChecked ?? false;
+            _settings.StartWithWindows = enable;
             _settings.Save();
-            MessageBox.Show(this, "Đã lưu cài đặt bố cục vùng cho màn hình này thành công!", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            bool success = StartupManager.SetRunAtStartup(enable, _settings.StartMinimizedToTray);
+            if (enable && !success)
+            {
+                MessageBox.Show(this, LocalizationManager.GetString("Msg_TaskSchedulerFailed"), LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void BtnDetectScreen_Click(object sender, RoutedEventArgs e)
@@ -389,13 +694,15 @@ namespace WindowsSplitter.UI
             UpdateZoneVisualDisplay();
 
             int count = MonitorManager.Instance.Monitors.Count;
-            string mode = MonitorManager.Instance.IsDuplicateMode ? "Duplicate (Nhân bản)" : "Extend (Mở rộng)";
-            MessageBox.Show(this, $"Đã làm mới danh sách màn hình: Tìm thấy {count} màn hình ({mode}).", "Quét màn hình", MessageBoxButton.OK, MessageBoxImage.Information);
+            string mode = MonitorManager.Instance.IsDuplicateMode 
+                ? LocalizationManager.GetString("Msg_ModeDuplicate") 
+                : LocalizationManager.GetString("Msg_ModeExtend");
+            MessageBox.Show(this, LocalizationManager.GetString("Msg_MonitorRefreshed", count, mode), LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void SettingChanged(object sender, RoutedEventArgs e)
         {
-            if (_isUpdatingUi) return;
+            if (_isUpdatingUi || _settings == null) return;
 
             _settings.OverrideWindowsSnap = ChkOverrideSnap.IsChecked ?? true;
             _settings.EnableWinShiftMonitorMove = ChkWinShiftMonitorMove.IsChecked ?? true;
@@ -404,11 +711,18 @@ namespace WindowsSplitter.UI
             _settings.DisableWin11RoundedCorners = ChkDisableRoundedCorners.IsChecked ?? true;
             _settings.ShowZoneOverlayOnSnap = ChkShowZoneOverlay.IsChecked ?? true;
             _settings.StartMinimizedToTray = ChkStartMinimized.IsChecked ?? false;
+            _settings.CloseToTray = ChkCloseToTray.IsChecked ?? false;
 
             _keyboardHook.OverrideWindowsSnap = _settings.OverrideWindowsSnap;
-            TxtHookStatus.Text = _settings.OverrideWindowsSnap ? "⚡ Win+Arrow: BẬT" : "⚪ Win+Arrow: TẮT";
-            MenuHookStatus.IsChecked = _settings.OverrideWindowsSnap;
+            UpdateHookStatusText();
 
+            _settings.Save();
+        }
+
+        private void ChkDefaultCoverTaskbar_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingUi || _settings == null) return;
+            _settings.DefaultCoverTaskbar = ChkDefaultCoverTaskbar.IsChecked ?? true;
             _settings.Save();
         }
 
@@ -459,7 +773,6 @@ namespace WindowsSplitter.UI
             {
                 _borderlessEngine.ToggleBorderless(item.Hwnd);
                 item.IsBorderless = _borderlessEngine.IsBorderless(item.Hwnd);
-                btn.Content = item.IsBorderless ? "Khôi phục" : "Bỏ viền";
             }
         }
 
@@ -468,7 +781,9 @@ namespace WindowsSplitter.UI
             if (sender is Button btn && btn.DataContext is RunningWindowItem item)
             {
                 var curMon = MonitorManager.Instance.GetMonitorForWindow(item.Hwnd);
-                var dlg = new AddAppDialog(item.ProcessName, item.Title, curMon.DeviceName)
+                var curZone = _zoneEngine.GetWindowCurrentZone(item.Hwnd);
+                int zoneId = curZone?.Id ?? 2;
+                var dlg = new AddAppDialog(item.ProcessName, item.Title, curMon.DeviceName, zoneId)
                 {
                     Owner = this
                 };
@@ -499,7 +814,7 @@ namespace WindowsSplitter.UI
 
         private void WhitelistSetting_Changed(object sender, RoutedEventArgs e)
         {
-            if (_isUpdatingUi) return;
+            if (_isUpdatingUi || _settings == null) return;
             _settings.Save();
         }
 
@@ -516,11 +831,15 @@ namespace WindowsSplitter.UI
                 if (match != null)
                 {
                     _borderlessEngine.ApplyBorderless(match.Hwnd, rule);
-                    MessageBox.Show(this, $"Đã áp dụng Borderless thành công cho: {match.Title}", "Thành công", MessageBoxButton.OK, MessageBoxImage.Information);
+                    string msg = LocalizationManager.GetString("Msg_AppliedBorderlessSuccess", match.Title);
+                    string title = LocalizationManager.GetString("Msg_Notice");
+                    MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
-                    MessageBox.Show(this, $"Không tìm thấy cửa sổ đang chạy của '{rule.ProcessName}'.\nVui lòng mở ứng dụng trước khi áp dụng.", "Thông báo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    string msg = LocalizationManager.GetString("Msg_AppWindowNotFound", rule.ProcessName);
+                    string title = LocalizationManager.GetString("Msg_Notice");
+                    MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
         }
@@ -537,7 +856,10 @@ namespace WindowsSplitter.UI
                 if (match != null)
                 {
                     _borderlessEngine.RestoreWindow(match.Hwnd);
-                    MessageBox.Show(this, $"Đã khôi phục viền gốc cho: {match.Title}", "Khôi phục thành công", MessageBoxButton.OK, MessageBoxImage.Information);
+                    match.IsBorderless = _borderlessEngine.IsBorderless(match.Hwnd);
+                    string msg = LocalizationManager.GetString("Msg_RestoredWindowSuccess", match.Title);
+                    string title = LocalizationManager.GetString("Msg_Notice");
+                    MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
         }
@@ -546,7 +868,9 @@ namespace WindowsSplitter.UI
         {
             if (sender is Button btn && btn.DataContext is BorderlessAppRule rule)
             {
-                var res = MessageBox.Show(this, $"Bạn có chắc muốn xóa '{rule.DisplayName} ({rule.ProcessName})' khỏi Whitelist?", "Xác nhận", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                string confirmMsg = LocalizationManager.GetString("Msg_ConfirmDeleteRule", rule.DisplayName, rule.ProcessName);
+                string confirmTitle = LocalizationManager.GetString("Msg_ConfirmDeleteTitle");
+                var res = MessageBox.Show(this, confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (res == MessageBoxResult.Yes)
                 {
                     _settings.BorderlessWhitelist.Remove(rule);
@@ -565,7 +889,7 @@ namespace WindowsSplitter.UI
             this.Hide();
             TrayIcon.ShowBalloonTip(
                 "Windows Splitter",
-                "Ứng dụng đang chạy ngầm trong khay hệ thống.\nBấm phím Win + Arrow để chia vùng, Win + Shift + Arrow để chuyển màn hình!",
+                LocalizationManager.GetString("Msg_BalloonTipContent"),
                 Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info
             );
         }
@@ -578,6 +902,10 @@ namespace WindowsSplitter.UI
         private void MenuOpenSettings_Click(object sender, RoutedEventArgs e)
         {
             RestoreFromTray();
+            if (MainTabControl != null)
+            {
+                MainTabControl.SelectedIndex = 2; // Switch directly to Settings tab
+            }
         }
 
         private void RestoreFromTray()
@@ -589,6 +917,7 @@ namespace WindowsSplitter.UI
 
         private void MenuToggleHook_Click(object sender, RoutedEventArgs e)
         {
+            if (_settings == null) return;
             _settings.OverrideWindowsSnap = MenuHookStatus.IsChecked;
             ChkOverrideSnap.IsChecked = _settings.OverrideWindowsSnap;
             _keyboardHook.OverrideWindowsSnap = _settings.OverrideWindowsSnap;
@@ -631,18 +960,19 @@ namespace WindowsSplitter.UI
 
         protected override void OnClosing(CancelEventArgs e)
         {
-            if (!_isReallyExiting)
+            if (!_isReallyExiting && _settings?.CloseToTray == true)
             {
                 e.Cancel = true;
                 this.Hide();
+                TrayIcon.ShowBalloonTip("WindowsSplitter", "Ứng dụng đang chạy ngầm trong khay hệ thống.", Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
                 return;
             }
 
-            // Cleanup
+            // Cleanup: unhook and restore all borderless windows to standard state
             _keyboardHook.Dispose();
             _winEventHookService.Dispose();
             _borderlessEngine.CleanUp();
-            _settings.Save();
+            _settings?.Save();
 
             base.OnClosing(e);
         }
