@@ -49,35 +49,18 @@
     <sys:String x:Key="Str_ActiveAppsTitle">Cửa sổ đang mở (Active Apps)</sys:String>
     <sys:String x:Key="Str_BtnRefreshApps">↻ Làm mới</sys:String>
     <sys:String x:Key="Str_SearchAppsPlaceholder">Tìm kiếm theo tên tiến trình hoặc tiêu đề...</sys:String>
-    <sys:String x:Key="Str_DefaultCoverTaskbar">Đè tràn qua thanh Taskbar khi bấm Bỏ viền</sys:String>
-    <sys:String x:Key="Str_DefaultCoverTaskbarTip">Khi bấm 'Bỏ viền', cửa sổ sẽ đạt tối đa chiều cao màn hình và đè lên thanh Taskbar</sys:String>
     <sys:String x:Key="Str_BadgeBorderless">Không viền</sys:String>
     <sys:String x:Key="Str_BtnMakeBorderless">Bỏ viền</sys:String>
     <sys:String x:Key="Str_BtnRestoreWindow">Khôi phục</sys:String>
     <sys:String x:Key="Str_BtnToggleBorderlessTip">Chuyển đổi trạng thái Không viền / Khôi phục</sys:String>
-    <sys:String x:Key="Str_BtnAddToWhitelist">+ Whitelist</sys:String>
-    <sys:String x:Key="Str_BtnAddToWhitelistTip">Thêm vào danh sách Whitelist</sys:String>
-    <sys:String x:Key="Str_WhitelistTitle">Danh sách Chỉ định Không Viền (Borderless Whitelist)</sys:String>
-    <sys:String x:Key="Str_WhitelistSubtitle">Tự động xóa viền, đè Taskbar và gắn nút nổi [- [] X] khi app hoạt động</sys:String>
-    <sys:String x:Key="Str_BtnAddAppManual">+ Thêm ứng dụng thủ công...</sys:String>
-    <sys:String x:Key="Str_BtnApplyNow">Áp dụng ngay</sys:String>
-    <sys:String x:Key="Str_BtnRestoreOriginal">Khôi phục gốc</sys:String>
-    <sys:String x:Key="Str_BtnDeleteRule">Xóa</sys:String>
-    <sys:String x:Key="Str_TargetZone">Vùng đích (Target Zone):</sys:String>
-    <sys:String x:Key="Str_ZoneFullscreen">Toàn màn hình (Fullscreen)</sys:String>
-    <sys:String x:Key="Str_Zone1Left">Vùng 1 (Bên Trái)</sys:String>
-    <sys:String x:Key="Str_Zone2Right">Vùng 2 (Bên Phải)</sys:String>
-    <sys:String x:Key="Str_AutoApply">Tự động áp dụng (Auto-apply)</sys:String>
-    <sys:String x:Key="Str_CoverTaskbar">Đè lên Taskbar</sys:String>
-    <sys:String x:Key="Str_FloatingCaption">Cụm nút [- [] X] nổi thông minh</sys:String>
-    <sys:String x:Key="Str_RemoveCorners">Tắt góc bo tròn Windows 11</sys:String>
 
     <!-- Tab 3: Settings -->
     <sys:String x:Key="Str_LanguageSectionTitle">Ngôn ngữ / Language</sys:String>
     <sys:String x:Key="Str_LanguageSelectLabel">Ngôn ngữ hiển thị:</sys:String>
     <sys:String x:Key="Str_StartupTrayTitle">Khởi động cùng Windows &amp; Khay Hệ Thống</sys:String>
-    <sys:String x:Key="Str_StartWithWindows">Khởi động cùng Windows (Quyền Administrator)</sys:String>
-    <sys:String x:Key="Str_StartWithWindowsTip">💡 Tự động cấu hình Windows Task Scheduler (/RL HIGHEST) để chạy quyền Administrator ngầm mà không bị hộp thoại UAC hỏi mỗi lần đăng nhập máy.</sys:String>
+    <sys:String x:Key="Str_StartWithWindows">Khởi động cùng Windows</sys:String>
+    <sys:String x:Key="Str_AdminRequiredInfo">Windows Splitter luôn cần và luôn chạy với quyền Administrator.</sys:String>
+    <sys:String x:Key="Str_StartWithWindowsTip">Đăng ký tác vụ Task Scheduler tương tác để chạy Windows Splitter khi đăng nhập.</sys:String>
     <sys:String x:Key="Str_StartMinimized">Khởi động ngầm dưới khay hệ thống (System Tray)</sys:String>
     <sys:String x:Key="Str_CloseToTray">Thu nhỏ xuống khay hệ thống khi bấm nút đóng (X)</sys:String>
     <sys:String x:Key="Str_CloseToTrayTip">Khi tắt tùy chọn này, bấm nút X sẽ đóng ứng dụng và khôi phục viền tất cả cửa sổ</sys:String>
@@ -97,6 +80,10 @@
     <sys:String x:Key="Str_HotkeyWinUpDesc">Phóng to toàn màn hình / Khôi phục</sys:String>
     <sys:String x:Key="Str_HotkeyWinDown">Win + Mũi tên Xuống (↓)</sys:String>
     <sys:String x:Key="Str_HotkeyWinDownDesc">Thu nhỏ (Minimize) hoặc trả kích thước</sys:String>
+    <sys:String x:Key="Str_HotkeyBorderless">Win + Ctrl + B</sys:String>
+    <sys:String x:Key="Str_HotkeyBorderlessDesc">Bật/tắt Borderless cho cửa sổ đang active</sys:String>
+    <sys:String x:Key="Str_BorderlessNoticeTitle">CHẾ ĐỘ BORDERLESS</sys:String>
+    <sys:String x:Key="Str_BorderlessNoticeHint">Nhấn Win + Ctrl + B để khôi phục cửa sổ</sys:String>
 
     <!-- Dialogs -->
     <sys:String x:Key="Str_SaveProfileTitle">Lưu Profile Bố Cục Tùy Chỉnh</sys:String>
@@ -108,16 +95,6 @@
     <sys:String x:Key="Str_MonitorSummaryLabel">Màn hình:</sys:String>
     <sys:String x:Key="Str_BtnCancel">Hủy</sys:String>
     <sys:String x:Key="Str_BtnSave">Lưu Profile</sys:String>
-
-    <sys:String x:Key="Str_AddAppTitle">Thêm ứng dụng vào danh sách Borderless</sys:String>
-    <sys:String x:Key="Str_AddAppHeader">Cấu hình Ứng dụng Không viền (Smart Borderless)</sys:String>
-    <sys:String x:Key="Str_AddAppDesc">Thiết lập hành vi tự động xóa viền, ép màn hình &amp; phóng vào Zone khi ứng dụng chạy.</sys:String>
-    <sys:String x:Key="Str_ProcessExeLabel">Tên file thực thi (.exe) *</sys:String>
-    <sys:String x:Key="Str_BtnBrowse">Duyệt file...</sys:String>
-    <sys:String x:Key="Str_DisplayNameLabel">Tên hiển thị / Gợi nhớ</sys:String>
-    <sys:String x:Key="Str_TargetMonitorLabel">Màn hình mục tiêu (Target Monitor)</sys:String>
-    <sys:String x:Key="Str_DockTargetZoneLabel">Gắn cố định vào Zone mục tiêu</sys:String>
-    <sys:String x:Key="Str_BtnAddToList">Thêm vào danh sách</sys:String>
 
     <!-- System Tray Menu -->
     <sys:String x:Key="Str_TrayOpenSettings">Mở Cài đặt</sys:String>
@@ -143,11 +120,7 @@
     <sys:String x:Key="Msg_SingleDisplay">Màn hình đơn (Single Display)</sys:String>
     <sys:String x:Key="Msg_MultiDisplayExtend">Mở rộng ({0} Màn hình - Extend)</sys:String>
     <sys:String x:Key="Msg_PrimaryTag">Chính</sys:String>
-    <sys:String x:Key="Msg_TaskSchedulerFailed">Không thể đăng ký tác vụ khởi động cùng Windows bằng Task Scheduler. Vui lòng đảm bảo ứng dụng đang chạy dưới quyền Administrator.</sys:String>
-    <sys:String x:Key="Msg_AppliedBorderlessSuccess">Đã áp dụng Borderless thành công cho: {0}</sys:String>
-    <sys:String x:Key="Msg_AppWindowNotFound">Không tìm thấy cửa sổ đang chạy của '{0}'. Vui lòng mở ứng dụng trước khi áp dụng.</sys:String>
-    <sys:String x:Key="Msg_RestoredWindowSuccess">Đã khôi phục viền gốc cho: {0}</sys:String>
-    <sys:String x:Key="Msg_ConfirmDeleteRule">Bạn có chắc muốn xóa '{0} ({1})' khỏi Whitelist?</sys:String>
+    <sys:String x:Key="Msg_TaskSchedulerFailed">Không thể đăng ký tác vụ Task Scheduler nâng quyền. Mục khởi động dự phòng có thể yêu cầu xác nhận Administrator khi đăng nhập.</sys:String>
     <sys:String x:Key="Msg_BalloonTipContent">Ứng dụng đang chạy ngầm trong khay hệ thống. Bấm Win + Arrow để chia vùng, Win + Shift + Arrow để chuyển màn hình!</sys:String>
 
 </ResourceDictionary>

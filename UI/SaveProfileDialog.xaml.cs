@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using WindowsSplitter.Core;
 using WindowsSplitter.Models;
@@ -42,8 +39,8 @@ namespace WindowsSplitter.UI
 
             string monLabel = LocalizationManager.GetString("Str_MonitorSummaryLabel");
             TxtMonitorSummary.Text = $"{monLabel} {monitorName} ({screenWidth} × {screenHeight})";
-            TxtProfileDesc.Text = isEn 
-                ? $"Custom Profile for {screenWidth} × {screenHeight}" 
+            TxtProfileDesc.Text = isEn
+                ? $"Custom Profile for {screenWidth} × {screenHeight}"
                 : $"Profile tùy chỉnh cho màn hình {screenWidth} × {screenHeight}";
         }
 

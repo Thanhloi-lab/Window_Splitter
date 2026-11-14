@@ -33,7 +33,7 @@ namespace WindowsSplitter.Core
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
         private static extern uint ExtractIconEx(string szFileName, int nIconIndex, IntPtr[] phiconLarge, IntPtr[] phiconSmall, uint nIcons);
 
-        public static List<RunningWindowItem> GetRunningWindows(BorderlessEngine borderlessEngine)
+        public static List<RunningWindowItem> GetRunningWindows(BorderlessEngine borderlessEngine, IntPtr mainWindowHandle = default)
         {
             var list = new List<RunningWindowItem>();
             IntPtr shellWnd = NativeMethods.GetShellWindow();
@@ -67,8 +67,9 @@ namespace WindowsSplitter.Core
                 string exePath = NativeMethods.GetProcessExecutablePath(hWnd);
                 string exeName = string.IsNullOrEmpty(exePath) ? "Unknown" : Path.GetFileName(exePath);
 
-                // Exclude current app
-                if (exeName.Equals("WindowsSplitter.exe", StringComparison.OrdinalIgnoreCase))
+                // Include the main window so users can restore it if they apply borderless to Windows Splitter.
+                // Keep internal dialogs and helper windows out of the running-app list.
+                if (exeName.Equals("WindowsSplitter.exe", StringComparison.OrdinalIgnoreCase) && hWnd != mainWindowHandle)
                     return true;
 
                 var item = new RunningWindowItem

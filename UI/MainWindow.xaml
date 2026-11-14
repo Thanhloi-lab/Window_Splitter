@@ -173,14 +173,39 @@
                         ToolTipText="Ultrawide Zone &amp; Smart Borderless Manager"
                         TrayMouseDoubleClick="TrayIcon_DoubleClick">
             <tb:TaskbarIcon.ContextMenu>
-                <ContextMenu Background="#252525" Foreground="#EEEEEE">
+                <ContextMenu Background="#252525" Foreground="#EEEEEE" BorderBrush="#444444" BorderThickness="1" Padding="0">
+                    <ContextMenu.Template>
+                        <ControlTemplate TargetType="ContextMenu">
+                            <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" CornerRadius="5" Padding="4">
+                                <ItemsPresenter />
+                            </Border>
+                        </ControlTemplate>
+                    </ContextMenu.Template>
+                    <ContextMenu.Resources>
+                        <Style TargetType="MenuItem">
+                            <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="Foreground" Value="#EEEEEE" />
+                            <Setter Property="Padding" Value="10,7" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="MenuItem">
+                                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsHighlighted" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#3A3A3A" />
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Opacity" Value="0.5" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ContextMenu.Resources>
                     <MenuItem x:Name="TrayMenuOpenSettings" Header="{DynamicResource Str_TrayOpenSettings}" Click="MenuOpenSettings_Click" FontWeight="Bold" />
-                    <Separator Background="#444444" />
-                    <MenuItem x:Name="MenuHookStatus" Header="{DynamicResource Str_TrayToggleHook}" IsCheckable="True" IsChecked="True" Click="MenuToggleHook_Click" />
-                    <MenuItem x:Name="TrayMenuSnapZone1" Header="{DynamicResource Str_TraySnapZone1}" Click="MenuSnapZone1_Click" />
-                    <MenuItem x:Name="TrayMenuSnapZone2" Header="{DynamicResource Str_TraySnapZone2}" Click="MenuSnapZone2_Click" />
-                    <MenuItem x:Name="TrayMenuMoveOtherMon" Header="{DynamicResource Str_TrayMoveOtherMonitor}" Click="MenuMoveOtherMonitor_Click" />
-                    <Separator Background="#444444" />
                     <MenuItem x:Name="TrayMenuExit" Header="{DynamicResource Str_TrayExit}" Click="MenuExit_Click" />
                 </ContextMenu>
             </tb:TaskbarIcon.ContextMenu>
@@ -435,8 +460,6 @@
             <TabItem Header="{DynamicResource Str_TabBorderlessManager}">
                 <Grid Margin="6,10,6,6">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="430" />
-                        <ColumnDefinition Width="16" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
@@ -454,17 +477,9 @@
                                 <Button HorizontalAlignment="Right" Style="{StaticResource SecondaryBtn}" Content="{DynamicResource Str_BtnRefreshApps}" Padding="10,5" Click="BtnRefreshRunningApps_Click" />
                             </Grid>
 
-                            <!-- Filter Search Box and Quick Options -->
+                            <!-- App search -->
                             <StackPanel Grid.Row="1" Margin="0,0,0,10">
                                 <TextBox x:Name="TxtFilterRunningApps" Margin="0,0,0,8" Padding="8,6" Background="#1A1A1A" Foreground="#FFFFFF" BorderBrush="#444444" TextChanged="TxtFilterRunningApps_TextChanged" ToolTip="{DynamicResource Str_SearchAppsPlaceholder}" />
-                                <CheckBox x:Name="ChkDefaultCoverTaskbar"
-                                          Content="{DynamicResource Str_DefaultCoverTaskbar}"
-                                          FontSize="12"
-                                          Foreground="#CCCCCC"
-                                          IsChecked="True"
-                                          Checked="ChkDefaultCoverTaskbar_Changed"
-                                          Unchecked="ChkDefaultCoverTaskbar_Changed"
-                                          ToolTip="{DynamicResource Str_DefaultCoverTaskbarTip}" />
                             </StackPanel>
 
                             <!-- Running Apps List with Stretched Items -->
@@ -506,78 +521,7 @@
                                                 <!-- Compact Actions Stick to the Right -->
                                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
                                                     <Button Style="{StaticResource SecondaryBtn}" Height="26" MinWidth="66" Padding="6,2" FontSize="11" Content="{Binding ActionText}" ToolTip="{DynamicResource Str_BtnToggleBorderlessTip}" Click="BtnQuickBorderless_Click" Margin="0,0,5,0" />
-                                                    <Button Style="{StaticResource PrimaryBtn}" Height="26" MinWidth="70" Padding="6,2" FontSize="11" Content="{DynamicResource Str_BtnAddToWhitelist}" ToolTip="{DynamicResource Str_BtnAddToWhitelistTip}" Click="BtnAddToWhitelist_Click" />
                                                 </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
-                    </Border>
-
-                    <!-- Right Card: Borderless Whitelist Manager -->
-                    <Border Grid.Column="2" Style="{StaticResource ModernCard}">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-
-                            <!-- Header -->
-                            <Grid Grid.Row="0" Margin="0,0,0,12">
-                                <StackPanel>
-                                    <TextBlock Text="{DynamicResource Str_WhitelistTitle}" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" />
-                                    <TextBlock Text="{DynamicResource Str_WhitelistSubtitle}" FontSize="11" Foreground="#888888" Margin="0,2,0,0" />
-                                </StackPanel>
-                                <Button HorizontalAlignment="Right" Style="{StaticResource PrimaryBtn}" Content="{DynamicResource Str_BtnAddAppManual}" Padding="12,6" Click="BtnAddAppManual_Click" />
-                            </Grid>
-
-                            <!-- Whitelist Items with Stretched Items -->
-                            <ListBox x:Name="ListWhitelist" Grid.Row="1" Background="#161616" BorderBrush="#333333" ItemContainerStyle="{StaticResource StretchedListBoxItem}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="#202020" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,8">
-                                            <Grid>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-
-                                                <!-- Top: Process Name and Compact Action Buttons -->
-                                                <Grid Grid.Row="0" Margin="0,0,0,8">
-                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" Foreground="#4CC2FF" FontSize="14" />
-                                                        <TextBlock Text="{Binding ProcessName, StringFormat=' ({0})'}" Foreground="#888888" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0" />
-                                                    </StackPanel>
-
-                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                        <Button Style="{StaticResource PrimaryBtn}" Height="28" Content="{DynamicResource Str_BtnApplyNow}" Padding="10,4" Margin="0,0,6,0" Click="BtnApplyWhitelistNow_Click" />
-                                                        <Button Style="{StaticResource SecondaryBtn}" Height="28" Content="{DynamicResource Str_BtnRestoreOriginal}" Padding="10,4" Margin="0,0,6,0" Click="BtnRestoreWhitelistWindow_Click" />
-                                                        <Button Style="{StaticResource DangerBtn}" Height="28" Content="{DynamicResource Str_BtnDeleteRule}" Padding="10,4" Click="BtnDeleteWhitelistRule_Click" />
-                                                    </StackPanel>
-                                                </Grid>
-
-                                                <!-- Middle: Target Monitor & Zone Selection -->
-                                                <WrapPanel Grid.Row="1" Margin="0,0,0,8">
-                                                    <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
-                                                        <TextBlock Text="{DynamicResource Str_TargetZone}" Foreground="#CCCCCC" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
-                                                        <ComboBox Width="200" SelectedIndex="{Binding TargetZoneId, Mode=TwoWay}" SelectionChanged="WhitelistSetting_Changed" Padding="8,4">
-                                                            <ComboBoxItem Content="{DynamicResource Str_ZoneFullscreen}" />
-                                                            <ComboBoxItem Content="{DynamicResource Str_Zone1Left}" />
-                                                            <ComboBoxItem Content="{DynamicResource Str_Zone2Right}" />
-                                                        </ComboBox>
-                                                    </StackPanel>
-                                                </WrapPanel>
-
-                                                <!-- Bottom: Feature Toggles -->
-                                                <WrapPanel Grid.Row="2">
-                                                    <CheckBox Content="{DynamicResource Str_AutoApply}" IsChecked="{Binding AutoApply, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Margin="0,0,16,4" Foreground="#DDD" />
-                                                    <CheckBox Content="{DynamicResource Str_CoverTaskbar}" IsChecked="{Binding CoverTaskbar, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Margin="0,0,16,4" Foreground="#DDD" />
-                                                    <CheckBox Content="{DynamicResource Str_FloatingCaption}" IsChecked="{Binding ShowFloatingCaption, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Margin="0,0,16,4" Foreground="#DDD" />
-                                                    <CheckBox Content="{DynamicResource Str_RemoveCorners}" IsChecked="{Binding RemoveRoundedCorners, Mode=TwoWay}" Checked="WhitelistSetting_Changed" Unchecked="WhitelistSetting_Changed" Foreground="#DDD" />
-                                                </WrapPanel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -619,6 +563,8 @@
                                           Checked="ChkStartWithWindows_Changed"
                                           Unchecked="ChkStartWithWindows_Changed"
                                           ToolTip="{DynamicResource Str_StartWithWindowsTip}" />
+                                <TextBlock Text="{DynamicResource Str_AdminRequiredInfo}"
+                                           FontSize="11" Foreground="#888888" Margin="24,0,0,4" TextWrapping="Wrap" />
                                 <TextBlock Text="{DynamicResource Str_StartWithWindowsTip}"
                                            FontSize="11" Foreground="#888888" Margin="24,0,0,8" TextWrapping="Wrap" />
 
@@ -687,10 +633,17 @@
                                         </Grid>
                                     </Border>
 
-                                    <Border Background="#1C1C1C" CornerRadius="4" Padding="12,8">
+                                    <Border Background="#1C1C1C" CornerRadius="4" Padding="12,8" Margin="0,0,0,6">
                                         <Grid>
                                             <TextBlock Text="{DynamicResource Str_HotkeyWinDown}" FontWeight="SemiBold" Foreground="#4CC2FF" />
                                             <TextBlock Text="{DynamicResource Str_HotkeyWinDownDesc}" HorizontalAlignment="Right" Foreground="#CCCCCC" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Background="#1C1C1C" CornerRadius="4" Padding="12,8">
+                                        <Grid>
+                                            <TextBlock Text="{DynamicResource Str_HotkeyBorderless}" FontWeight="SemiBold" Foreground="#57D97A" />
+                                            <TextBlock Text="{DynamicResource Str_HotkeyBorderlessDesc}" HorizontalAlignment="Right" Foreground="#CCCCCC" />
                                         </Grid>
                                     </Border>
                                 </StackPanel>

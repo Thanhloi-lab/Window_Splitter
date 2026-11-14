@@ -264,7 +264,12 @@ namespace WindowsSplitter.Core
             int actualW = targetWidth;
             int actualH = targetHeight;
 
-            if (_settings.DwmInvisibleBorderCompensation)
+            long windowStyle = NativeMethods.GetWindowLongPtr(hWnd, NativeMethods.GWL_STYLE).ToInt64();
+            bool hasDwmFrame = (windowStyle & (NativeMethods.WS_CAPTION | NativeMethods.WS_THICKFRAME | NativeMethods.WS_BORDER)) != 0;
+
+            // Borderless popup windows have no invisible DWM frame to compensate. Applying
+            // the fallback offset to them creates a visible gap around the snapped content.
+            if (_settings.DwmInvisibleBorderCompensation && hasDwmFrame)
             {
                 int leftOffset = 0;
                 int topOffset = 0;

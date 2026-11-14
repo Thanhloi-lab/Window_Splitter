@@ -34,13 +34,10 @@
 
 ---
 
-### 3. 🗖 Quản lý Không Viền (Smart Borderless Manager - Thay thế Borderless Gaming)
-* **Danh sách Cửa sổ đang mở (Active Processes List):** Quét các cửa sổ đang hoạt động kèm Icon, Tên tiến trình (`.exe`), Tiêu đề cửa sổ. Nút chuyển nhanh **"Bỏ viền (Borderless)"** và **"+ Whitelist"**.
-* **Danh sách Chỉ định Không Viền (Borderless Whitelist):**
-  * **Tự động áp dụng (Auto-apply):** Tự động phát hiện khi game khởi chạy để xóa viền và ép vào Zone.
-  * **Chỉ định Màn hình mục tiêu (Target Monitor):** Chỉ định cụ thể màn hình muốn mở game (ví dụ: luôn mở trên màn Ultrawide thay vì mở nhầm sang màn phụ).
-  * **Đè lên Taskbar (Cover Taskbar):** Chiều cao đạt tối đa để tràn đè qua thanh Taskbar ở vùng game.
-  * **Gắn cố định vào Zone:** Chọn Zone 1, Zone 2 hoặc Toàn màn hình.
+### 3. Smart Borderless Manager
+* The active-window list lets you apply or restore borderless mode for any visible app.
+* Borderless removes the title bar and window frame, covers the taskbar, and stays topmost. Snapped windows keep their selected zone; unsnapped windows fill the current monitor.
+* Press **Win + Ctrl + B** to toggle borderless mode for the active window. A translucent notice appears when borderless mode is enabled.
 
 ---
 
@@ -71,20 +68,18 @@ c:\PersonalProject\WindowsSplitter\
 │   ├── NativeMethods.cs         # P/Invoke Win32 API (user32, dwmapi, kernel32, shcore)
 │   ├── MonitorManager.cs        # Quản lý đa màn hình, DPI Scaling, phát hiện Duplicate/Extend
 │   ├── LowLevelKeyboardHook.cs  # Bắt phím tắt Win + Arrow và Win + Shift + Arrow
-│   ├── WinEventHookService.cs   # Bắt sự kiện Focus / Khởi chạy app để Auto-apply
+│   ├── WinEventHookService.cs   # Bắt sự kiện Focus để duy trì cửa sổ che Taskbar
 │   ├── ZoneEngine.cs            # Thuật toán chia vùng, bù trừ viền DWM 7px, chuyển màn hình
 │   ├── BorderlessEngine.cs      # Xóa WS_CAPTION, quản lý viền, gắn Floating Caption Bar
 │   └── WindowEnumerator.cs      # Quét danh sách cửa sổ đang chạy & trích xuất Icon
 ├── Models/
 │   ├── ZoneLayout.cs            # Zone, ZonePreset, MonitorLayoutConfig
-│   ├── BorderlessAppRule.cs     # Quy tắc cấu hình Borderless (hỗ trợ TargetMonitorDevice)
 │   ├── AppSettings.cs           # Lưu trữ appsettings.json (%AppData%\WindowsSplitter)
 │   └── RunningWindowItem.cs     # Thông tin tiến trình & cửa sổ đang hoạt động
 ├── UI/
-│   ├── MainWindow.xaml(.cs)     # Giao diện chính: Bộ chọn màn hình, Presets, Whitelist
 │   ├── ZoneOverlayWindow.xaml   # Khung viền mờ hiển thị hiệu ứng theo DPI chuẩn xác
 │   ├── FloatingCaptionBar.xaml  # Cụm nút [- [] X] nổi tự ẩn/hiện định vị pixel vật lý
-│   └── AddAppDialog.xaml        # Hộp thoại thêm ứng dụng (chọn Màn hình & Zone mục tiêu)
+│   └── BorderlessNoticeWindow.xaml # Thông báo mờ khi bật chế độ Borderless
 ├── app.manifest                 # Quyền Administrator (Bắt buộc cho Game & System Hook)
 ├── app.ico                      # Icon ứng dụng chuẩn Fluent Ultrawide
 └── WindowsSplitter.csproj       # .NET 8 WPF, WPF-UI 4.3.0, Hardcodet.NotifyIcon.Wpf

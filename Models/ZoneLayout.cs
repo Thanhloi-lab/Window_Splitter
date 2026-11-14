@@ -32,7 +32,7 @@ namespace WindowsSplitter.Models
                 bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
                 if (!isEn) return Name;
                 if (Name.Contains("Vùng 1") || Name.Contains("Nửa Trên") || Name.Contains("Tầng Trên") || Name.Contains("Cánh Trái") || Name.Contains("Cột Trái"))
-                    return $"Zone 1 ({ (Id == 1 ? "Left" : "Top") })";
+                    return $"Zone 1 ({(Id == 1 ? "Left" : "Top")})";
                 if (Name.Contains("Vùng 2") || Name.Contains("Nửa Dưới") || Name.Contains("Tầng Dưới") || Name.Contains("Cánh Phải") || Name.Contains("Cột Phải"))
                     return $"Zone {Id} (Right)";
                 if (Name.Contains("Giữa") || Name.Contains("Trung Tâm"))

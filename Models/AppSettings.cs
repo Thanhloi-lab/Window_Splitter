@@ -20,12 +20,10 @@ namespace WindowsSplitter.Models
         // Multi-monitor advanced options
         public bool EnableCrossMonitorWrap { get; set; } = true;
         public bool EnableWinShiftMonitorMove { get; set; } = true;
-        public bool DefaultCoverTaskbar { get; set; } = true;
 
         public string SelectedPresetId { get; set; } = "";
         public List<ZonePreset> Presets { get; set; } = new();
         public List<MonitorLayoutConfig> MonitorConfigs { get; set; } = new();
-        public List<BorderlessAppRule> BorderlessWhitelist { get; set; } = new();
 
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
@@ -62,9 +60,6 @@ namespace WindowsSplitter.Models
                     var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
                     if (settings != null)
                     {
-                        // Clean up legacy dummy apps if any
-                        settings.BorderlessWhitelist?.RemoveAll(r => r.ProcessName == "wwm.exe" || r.ProcessName == "chrome.exe" || r.ProcessName == "potplayer64.exe");
-
                         settings.EnsureDefaults();
                         return settings;
                     }
@@ -146,10 +141,6 @@ namespace WindowsSplitter.Models
                 }
             }
 
-            if (BorderlessWhitelist == null)
-            {
-                BorderlessWhitelist = new List<BorderlessAppRule>();
-            }
         }
 
         public MonitorLayoutConfig GetOrCreateMonitorConfig(string deviceName, int width, int height)

@@ -88,17 +88,17 @@ namespace WindowsSplitter.Core
             }
             else
             {
-                string args = startMinimized ? "--autostart --minimized" : "--autostart";
+                string args = startMinimized ? "--minimized" : string.Empty;
                 bool taskSuccess = false;
 
                 // 1. Create Task Scheduler task with HIGHEST runlevel for Admin privileges without UAC prompt
                 try
                 {
-                    string trParam = $"\\\"{exePath}\\\" {args}";
+                    string trParam = $"\\\"{exePath}\\\"{(string.IsNullOrEmpty(args) ? string.Empty : " " + args)}";
                     var psi = new ProcessStartInfo
                     {
                         FileName = "schtasks.exe",
-                        Arguments = $"/Create /TN \"{TaskName}\" /TR \"{trParam}\" /SC ONLOGON /RL HIGHEST /F",
+                        Arguments = $"/Create /TN \"{TaskName}\" /TR \"{trParam}\" /SC ONLOGON /RL HIGHEST /IT /F",
                         CreateNoWindow = true,
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
@@ -134,7 +134,8 @@ namespace WindowsSplitter.Core
                         using var key = Registry.CurrentUser.OpenSubKey(RunRegistryKey, true);
                         if (key != null)
                         {
-                            key.SetValue(RegKeyName, $"\"{exePath}\" {args}");
+                            key.SetValue(RegKeyName, $"\"{exePath}\"{(string.IsNullOrEmpty(args) ? string.Empty : " " + args)}");
+                            return true;
                         }
                     }
                     catch (Exception ex)

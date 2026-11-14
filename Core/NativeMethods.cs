@@ -95,6 +95,7 @@ namespace WindowsSplitter.Core
         public const int VK_UP = 0x26;
         public const int VK_RIGHT = 0x27;
         public const int VK_DOWN = 0x28;
+        public const int VK_B = 0x42;
         public const int VK_LWIN = 0x5B;
         public const int VK_RWIN = 0x5C;
 

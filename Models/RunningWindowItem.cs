@@ -30,11 +30,11 @@ namespace WindowsSplitter.Models
             }
         }
 
-        public string ActionText => IsBorderless 
-            ? Core.LocalizationManager.GetString("Str_BtnRestoreWindow") 
+        public string ActionText => IsBorderless
+            ? Core.LocalizationManager.GetString("Str_BtnRestoreWindow")
             : Core.LocalizationManager.GetString("Str_BtnMakeBorderless");
-        public string StatusBadge => IsBorderless 
-            ? Core.LocalizationManager.GetString("Str_BadgeBorderless") 
+        public string StatusBadge => IsBorderless
+            ? Core.LocalizationManager.GetString("Str_BadgeBorderless")
             : "";
         public bool HasStatusBadge => IsBorderless;
         public string DisplayText => $"{Title} ({ProcessName})";

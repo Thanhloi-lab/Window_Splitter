@@ -1,4 +1,3 @@
-using System.IO;
 using WindowsSplitter.Models;
 using WindowsSplitter.UI;
 
@@ -72,33 +71,7 @@ namespace WindowsSplitter.Core
             }
         }
 
-        public BorderlessAppRule? FindRuleForWindow(IntPtr hWnd)
-        {
-            if (hWnd == IntPtr.Zero) return null;
-
-            string exePath = NativeMethods.GetProcessExecutablePath(hWnd);
-            string exeName = Path.GetFileName(exePath);
-            string title = NativeMethods.GetWindowTitle(hWnd);
-
-            foreach (var rule in _settings.BorderlessWhitelist)
-            {
-                bool exeMatch = !string.IsNullOrEmpty(rule.ProcessName) &&
-                               (string.Equals(rule.ProcessName, exeName, StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(rule.ProcessName, exePath, StringComparison.OrdinalIgnoreCase));
-
-                bool titleMatch = string.IsNullOrEmpty(rule.WindowTitlePattern) ||
-                                 title.Contains(rule.WindowTitlePattern, StringComparison.OrdinalIgnoreCase);
-
-                if (exeMatch && titleMatch)
-                {
-                    return rule;
-                }
-            }
-
-            return null;
-        }
-
-        public bool ApplyBorderless(IntPtr hWnd, BorderlessAppRule? rule = null, Zone? targetZone = null)
+        public bool ApplyBorderless(IntPtr hWnd, Zone? targetZone = null)
         {
             if (hWnd == IntPtr.Zero || !NativeMethods.IsWindowVisible(hWnd))
                 return false;
@@ -150,29 +123,7 @@ namespace WindowsSplitter.Core
                 _managedWindows[hWnd] = state;
             }
 
-            // If rule was not specified, try finding one from whitelist
-            if (rule == null)
-            {
-                rule = FindRuleForWindow(hWnd);
-            }
-
-            // Determine target monitor (honoring rule's TargetMonitorDevice if specified)
-            MonitorInfoItem targetMonitor;
-            if (rule != null && !string.IsNullOrEmpty(rule.TargetMonitorDevice))
-            {
-                if (rule.TargetMonitorDevice.Equals("primary", StringComparison.OrdinalIgnoreCase))
-                {
-                    targetMonitor = MonitorManager.Instance.GetPrimaryMonitor() ?? MonitorManager.Instance.GetMonitorForWindow(hWnd);
-                }
-                else
-                {
-                    targetMonitor = MonitorManager.Instance.GetMonitorByDevice(rule.TargetMonitorDevice) ?? MonitorManager.Instance.GetMonitorForWindow(hWnd);
-                }
-            }
-            else
-            {
-                targetMonitor = MonitorManager.Instance.GetMonitorForWindow(hWnd);
-            }
+            MonitorInfoItem targetMonitor = MonitorManager.Instance.GetMonitorForWindow(hWnd);
 
             int monLeft = targetMonitor.Bounds.Left;
             int monTop = targetMonitor.Bounds.Top;
@@ -192,7 +143,7 @@ namespace WindowsSplitter.Core
             NativeMethods.SetWindowLongPtr(hWnd, NativeMethods.GWL_STYLE, new IntPtr(newStyle));
 
             // Windows 11 corner preference: no round corners
-            if (rule?.RemoveRoundedCorners ?? _settings.DisableWin11RoundedCorners)
+            if (_settings.DisableWin11RoundedCorners)
             {
                 int pref = (int)NativeMethods.DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_DONOTROUND;
                 NativeMethods.DwmSetWindowAttribute(hWnd, NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE, ref pref, sizeof(int));
@@ -201,77 +152,34 @@ namespace WindowsSplitter.Core
             // Determine target position & dimensions
             int targetX, targetY, targetW, targetH;
 
-            // Retrieve preset for target monitor
-            var preset = _settings.GetPresetForMonitor(targetMonitor);
-
-            // 1. If targetZone not explicitly given, try rule's TargetZoneId
-            if (targetZone == null && rule != null && rule.TargetZoneId > 0 && preset != null)
-            {
-                targetZone = preset.Zones.FirstOrDefault(z => z.Id == rule.TargetZoneId);
-            }
-
-            // 2. If targetZone is still null, and user DID NOT explicitly choose Fullscreen (TargetZoneId == 0):
-            // Check if window is already snapped in a zone!
-            if (targetZone == null && (rule == null || rule.TargetZoneId != 0))
+            if (targetZone == null)
             {
                 targetZone = _zoneEngine?.GetWindowCurrentZone(hWnd);
             }
-
-            bool coverTaskbar = rule != null ? rule.CoverTaskbar : _settings.DefaultCoverTaskbar;
 
             if (targetZone != null)
             {
                 targetX = monLeft + targetZone.X;
                 targetY = monTop + targetZone.Y;
                 targetW = targetZone.Width;
-                targetH = coverTaskbar
-                    ? targetZone.Height
-                    : Math.Min(targetZone.Height, targetMonitor.WorkArea.Height);
-            }
-            else if (rule != null && rule.TargetZoneId == 0)
-            {
-                // Fullscreen borderless explicitly requested by rule
-                targetX = monLeft;
-                targetY = monTop;
-                targetW = targetMonitor.Bounds.Width;
-                targetH = coverTaskbar ? targetMonitor.Bounds.Height : targetMonitor.WorkArea.Height;
+                targetH = targetZone.Height;
             }
             else
             {
-                // Free-floating window without a zone: keep current position and size instead of blowing up to fullscreen!
-                if (state.OriginalRect.Width > 0 && state.OriginalRect.Height > 0)
-                {
-                    targetX = state.OriginalRect.Left;
-                    targetY = state.OriginalRect.Top;
-                    targetW = state.OriginalRect.Width;
-                    targetH = coverTaskbar ? targetMonitor.Bounds.Height : state.OriginalRect.Height;
-                }
-                else
-                {
-                    targetX = targetMonitor.WorkArea.Left;
-                    targetY = targetMonitor.WorkArea.Top;
-                    targetW = targetMonitor.WorkArea.Width;
-                    targetH = targetMonitor.WorkArea.Height;
-                }
+                targetX = monLeft;
+                targetY = monTop;
+                targetW = targetMonitor.Bounds.Width;
+                targetH = targetMonitor.Bounds.Height;
             }
 
-            IntPtr zOrder = coverTaskbar ? NativeMethods.HWND_TOPMOST : NativeMethods.HWND_TOP;
+            SetBorderlessBounds(hWnd, targetX, targetY, targetW, targetH);
 
-            NativeMethods.SetWindowPos(
-                hWnd,
-                zOrder,
-                targetX,
-                targetY,
-                targetW,
-                targetH,
-                NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW
-            );
-
+            bool wasBorderless = state.IsBorderless;
             state.IsBorderless = true;
-            state.CoveredTaskbar = coverTaskbar;
+            state.CoveredTaskbar = true;
 
             // Manage Floating Caption Bar
-            bool showCaption = rule?.ShowFloatingCaption ?? true;
+            bool showCaption = true;
             if (showCaption)
             {
                 App.Current.Dispatcher.Invoke(() =>
@@ -297,8 +205,51 @@ namespace WindowsSplitter.Core
                 });
             }
 
-            BorderlessStateChanged?.Invoke(hWnd, true);
+            if (!wasBorderless)
+            {
+                BorderlessStateChanged?.Invoke(hWnd, true);
+            }
             return true;
+        }
+
+        private static void SetBorderlessBounds(IntPtr hWnd, int targetX, int targetY, int targetW, int targetH)
+        {
+            const uint flags = NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW;
+            NativeMethods.SetWindowPos(hWnd, NativeMethods.HWND_TOPMOST, targetX, targetY, targetW, targetH, flags);
+
+            // Some applications retain asymmetric DWM frame insets after their caption and
+            // resize border are stripped. Align the visible DWM bounds to the requested rect.
+            if (NativeMethods.DwmGetWindowAttribute(
+                    hWnd,
+                    NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS,
+                    out var frameBounds,
+                    System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.RECT>()) != 0 ||
+                !NativeMethods.GetWindowRect(hWnd, out var windowRect))
+            {
+                return;
+            }
+
+            int leftInset = frameBounds.Left - windowRect.Left;
+            int topInset = frameBounds.Top - windowRect.Top;
+            int rightInset = windowRect.Right - frameBounds.Right;
+            int bottomInset = windowRect.Bottom - frameBounds.Bottom;
+
+            if (leftInset == 0 && topInset == 0 && rightInset == 0 && bottomInset == 0)
+                return;
+
+            int adjustedWidth = targetW + leftInset + rightInset;
+            int adjustedHeight = targetH + topInset + bottomInset;
+            if (adjustedWidth <= 0 || adjustedHeight <= 0)
+                return;
+
+            NativeMethods.SetWindowPos(
+                hWnd,
+                NativeMethods.HWND_TOPMOST,
+                targetX - leftInset,
+                targetY - topInset,
+                adjustedWidth,
+                adjustedHeight,
+                flags);
         }
 
         public bool RestoreWindow(IntPtr hWnd)
@@ -397,9 +348,13 @@ namespace WindowsSplitter.Core
                 });
             }
 
+            bool wasBorderless = state.IsBorderless;
             state.IsBorderless = false;
             state.CoveredTaskbar = false;
-            BorderlessStateChanged?.Invoke(hWnd, false);
+            if (wasBorderless)
+            {
+                BorderlessStateChanged?.Invoke(hWnd, false);
+            }
             return true;
         }
 

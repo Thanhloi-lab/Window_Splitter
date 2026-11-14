@@ -1,0 +1,40 @@
+WINDOWS SPLITTER
+END USER LICENSE AGREEMENT
+
+Effective date: October 31, 2026
+
+Please read this agreement before installing or using Windows Splitter. By selecting “I accept the agreement” in Setup and continuing, you agree to these terms. If you do not agree, cancel Setup and do not use the application.
+
+1. LICENSE GRANT
+
+The Windows Splitter project grants you a free, non-exclusive, non-transferable license to install and use Windows Splitter for personal or internal business purposes on Windows devices that you own or are authorized to administer. This license does not transfer ownership of the application to you.
+
+2. RESTRICTIONS
+
+You may not sell, rent, sublicense, or distribute the application or installer as a standalone product. You may not remove copyright, trademark, or other ownership notices. You may not modify or reverse engineer the application except where applicable law expressly permits it.
+
+3. THIRD-PARTY COMPONENTS
+
+Windows Splitter may include or depend on third-party software. Those components remain subject to their own licenses and notices. If a third-party license conflicts with this agreement for that component, the third-party license governs that component.
+
+4. UPDATES AND SUPPORT
+
+Updates, maintenance, and support may be provided at the discretion of the Windows Splitter project. This agreement does not require the project to provide updates or support.
+
+5. DISCLAIMER OF WARRANTY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, WINDOWS SPLITTER IS PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. You are responsible for determining whether the application is suitable for your use and for maintaining appropriate backups.
+
+6. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE WINDOWS SPLITTER PROJECT AND ITS CONTRIBUTORS WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOSS OF DATA, PROFITS, GOODWILL, OR BUSINESS INTERRUPTION, ARISING OUT OF OR RELATED TO THE APPLICATION OR THIS AGREEMENT. Nothing in this agreement excludes liability that cannot lawfully be excluded.
+
+7. TERMINATION
+
+This license ends if you materially breach this agreement. Upon termination, stop using and uninstall the application. Sections that by their nature should continue after termination will survive.
+
+8. GENERAL
+
+This agreement applies only to Windows Splitter. Third-party components remain governed by their own licenses. If any provision is unenforceable, the remaining provisions continue to apply to the extent permitted by law. Your statutory rights are not limited where applicable law prohibits such a limitation.
+
+END OF AGREEMENT

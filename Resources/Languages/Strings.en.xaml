@@ -49,35 +49,18 @@
     <sys:String x:Key="Str_ActiveAppsTitle">Active Windows (Running Apps)</sys:String>
     <sys:String x:Key="Str_BtnRefreshApps">↻ Refresh</sys:String>
     <sys:String x:Key="Str_SearchAppsPlaceholder">Search by process name or window title...</sys:String>
-    <sys:String x:Key="Str_DefaultCoverTaskbar">Cover Taskbar when applying Borderless</sys:String>
-    <sys:String x:Key="Str_DefaultCoverTaskbarTip">Window expands to full monitor height covering the Windows Taskbar</sys:String>
     <sys:String x:Key="Str_BadgeBorderless">Borderless</sys:String>
     <sys:String x:Key="Str_BtnMakeBorderless">Borderless</sys:String>
     <sys:String x:Key="Str_BtnRestoreWindow">Restore</sys:String>
     <sys:String x:Key="Str_BtnToggleBorderlessTip">Toggle between Borderless and original window state</sys:String>
-    <sys:String x:Key="Str_BtnAddToWhitelist">+ Whitelist</sys:String>
-    <sys:String x:Key="Str_BtnAddToWhitelistTip">Add application to the automated Borderless Whitelist</sys:String>
-    <sys:String x:Key="Str_WhitelistTitle">Borderless Whitelist Rules</sys:String>
-    <sys:String x:Key="Str_WhitelistSubtitle">Auto-remove borders, cover Taskbar &amp; attach smart floating [- [] X] buttons</sys:String>
-    <sys:String x:Key="Str_BtnAddAppManual">+ Add App Manually...</sys:String>
-    <sys:String x:Key="Str_BtnApplyNow">Apply Now</sys:String>
-    <sys:String x:Key="Str_BtnRestoreOriginal">Restore Original</sys:String>
-    <sys:String x:Key="Str_BtnDeleteRule">Delete</sys:String>
-    <sys:String x:Key="Str_TargetZone">Target Zone:</sys:String>
-    <sys:String x:Key="Str_ZoneFullscreen">Fullscreen</sys:String>
-    <sys:String x:Key="Str_Zone1Left">Zone 1 (Left)</sys:String>
-    <sys:String x:Key="Str_Zone2Right">Zone 2 (Right)</sys:String>
-    <sys:String x:Key="Str_AutoApply">Auto-apply when app launches</sys:String>
-    <sys:String x:Key="Str_CoverTaskbar">Cover Taskbar</sys:String>
-    <sys:String x:Key="Str_FloatingCaption">Smart floating [- [] X] buttons</sys:String>
-    <sys:String x:Key="Str_RemoveCorners">Disable Windows 11 rounded corners</sys:String>
 
     <!-- Tab 3: Settings -->
     <sys:String x:Key="Str_LanguageSectionTitle">Language / Ngôn ngữ</sys:String>
     <sys:String x:Key="Str_LanguageSelectLabel">Display Language:</sys:String>
     <sys:String x:Key="Str_StartupTrayTitle">Windows Startup &amp; System Tray</sys:String>
-    <sys:String x:Key="Str_StartWithWindows">Start with Windows (Administrator Privileges)</sys:String>
-    <sys:String x:Key="Str_StartWithWindowsTip">💡 Automatically configures Windows Task Scheduler (/RL HIGHEST) to run with silent Admin privileges at login without UAC prompts.</sys:String>
+    <sys:String x:Key="Str_StartWithWindows">Start with Windows</sys:String>
+    <sys:String x:Key="Str_AdminRequiredInfo">Administrator privileges are required and always enabled.</sys:String>
+    <sys:String x:Key="Str_StartWithWindowsTip">Registers an interactive Task Scheduler task to run Windows Splitter at sign-in.</sys:String>
     <sys:String x:Key="Str_StartMinimized">Start minimized to System Tray</sys:String>
     <sys:String x:Key="Str_CloseToTray">Minimize to System Tray when closing (X)</sys:String>
     <sys:String x:Key="Str_CloseToTrayTip">When disabled, pressing X closes the application and restores borders to all windows</sys:String>
@@ -97,7 +80,10 @@
     <sys:String x:Key="Str_HotkeyWinUpDesc">Maximize fullscreen / Restore</sys:String>
     <sys:String x:Key="Str_HotkeyWinDown">Win + Down Arrow (↓)</sys:String>
     <sys:String x:Key="Str_HotkeyWinDownDesc">Minimize or restore size</sys:String>
-
+    <sys:String x:Key="Str_HotkeyBorderless">Win + Ctrl + B</sys:String>
+    <sys:String x:Key="Str_HotkeyBorderlessDesc">Toggle borderless mode for the active window</sys:String>
+    <sys:String x:Key="Str_BorderlessNoticeTitle">BORDERLESS MODE</sys:String>
+    <sys:String x:Key="Str_BorderlessNoticeHint">Press Win + Ctrl + B to restore this window</sys:String>
     <!-- Dialogs -->
     <sys:String x:Key="Str_SaveProfileTitle">Save Custom Zone Profile</sys:String>
     <sys:String x:Key="Str_SaveProfileHeader">💾 Save Custom Zone Layout Profile</sys:String>
@@ -109,15 +95,6 @@
     <sys:String x:Key="Str_BtnCancel">Cancel</sys:String>
     <sys:String x:Key="Str_BtnSave">Save Profile</sys:String>
 
-    <sys:String x:Key="Str_AddAppTitle">Add Application to Borderless Whitelist</sys:String>
-    <sys:String x:Key="Str_AddAppHeader">Configure Smart Borderless Application</sys:String>
-    <sys:String x:Key="Str_AddAppDesc">Set up automatic border removal, taskbar cover &amp; zone snapping when app launches.</sys:String>
-    <sys:String x:Key="Str_ProcessExeLabel">Executable file name (.exe) *</sys:String>
-    <sys:String x:Key="Str_BtnBrowse">Browse file...</sys:String>
-    <sys:String x:Key="Str_DisplayNameLabel">Display Name / Label</sys:String>
-    <sys:String x:Key="Str_TargetMonitorLabel">Target Monitor</sys:String>
-    <sys:String x:Key="Str_DockTargetZoneLabel">Dock into Target Zone</sys:String>
-    <sys:String x:Key="Str_BtnAddToList">Add to Whitelist</sys:String>
 
     <!-- System Tray Menu -->
     <sys:String x:Key="Str_TrayOpenSettings">Open Settings</sys:String>
@@ -143,11 +120,7 @@
     <sys:String x:Key="Msg_SingleDisplay">Single Display</sys:String>
     <sys:String x:Key="Msg_MultiDisplayExtend">Extended ({0} Displays - Extend)</sys:String>
     <sys:String x:Key="Msg_PrimaryTag">Primary</sys:String>
-    <sys:String x:Key="Msg_TaskSchedulerFailed">Failed to register Windows startup task via Task Scheduler. Please ensure the app is running as Administrator.</sys:String>
-    <sys:String x:Key="Msg_AppliedBorderlessSuccess">Successfully applied Borderless to: {0}</sys:String>
-    <sys:String x:Key="Msg_AppWindowNotFound">Running window for '{0}' not found. Please launch the application before applying.</sys:String>
-    <sys:String x:Key="Msg_RestoredWindowSuccess">Successfully restored original borders for: {0}</sys:String>
-    <sys:String x:Key="Msg_ConfirmDeleteRule">Are you sure you want to remove '{0} ({1})' from Whitelist?</sys:String>
+    <sys:String x:Key="Msg_TaskSchedulerFailed">Could not register an elevated Task Scheduler task. A standard startup entry may prompt for administrator approval at sign-in.</sys:String>
     <sys:String x:Key="Msg_BalloonTipContent">Windows Splitter is running in the background. Press Win + Arrow to snap, Win + Shift + Arrow to switch monitors!</sys:String>
 
 </ResourceDictionary>

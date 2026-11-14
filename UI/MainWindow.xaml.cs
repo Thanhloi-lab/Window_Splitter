@@ -29,13 +29,31 @@ namespace WindowsSplitter.UI
             _settings = AppSettings.Load();
             _zoneEngine = new ZoneEngine(_settings);
             _borderlessEngine = new BorderlessEngine(_settings, _zoneEngine);
-            _winEventHookService = new WinEventHookService(_settings, _borderlessEngine, _zoneEngine);
+            _winEventHookService = new WinEventHookService(_borderlessEngine);
             _keyboardHook = new LowLevelKeyboardHook
             {
-                OverrideWindowsSnap = _settings.OverrideWindowsSnap
+                OverrideWindowsSnap = _settings.OverrideWindowsSnap,
+                EnableWinShiftMonitorMove = _settings.EnableWinShiftMonitorMove
             };
 
             InitializeComponent();
+
+            _borderlessEngine.BorderlessStateChanged += (hWnd, isBorderless) =>
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    var item = _allRunningWindows.FirstOrDefault(window => window.Hwnd == hWnd);
+                    if (item != null)
+                    {
+                        item.IsBorderless = isBorderless;
+                    }
+
+                    if (isBorderless)
+                    {
+                        new BorderlessNoticeWindow().ShowForWindow(hWnd);
+                    }
+                });
+            };
 
             // Setup Admin indicator & Language events
             UpdateAdminIndicator();
@@ -52,17 +70,12 @@ namespace WindowsSplitter.UI
                         // 1. Snap window according to pressed arrow direction
                         _zoneEngine.SnapWindow(activeHwnd, direction);
 
-                        // 2. If it is already borderless or has a whitelist rule, re-apply borderless inside the snapped zone
-                        var rule = _borderlessEngine.FindRuleForWindow(activeHwnd);
+                        // Re-apply borderless inside the snapped zone when already borderless.
                         var curZone = _zoneEngine.GetWindowCurrentZone(activeHwnd);
 
                         if (_borderlessEngine.IsBorderless(activeHwnd))
                         {
-                            _borderlessEngine.ApplyBorderless(activeHwnd, rule, curZone);
-                        }
-                        else if (rule != null && rule.AutoApply)
-                        {
-                            _borderlessEngine.ApplyBorderless(activeHwnd, rule, curZone);
+                            _borderlessEngine.ApplyBorderless(activeHwnd, curZone);
                         }
                     }
                 });
@@ -83,10 +96,19 @@ namespace WindowsSplitter.UI
                         if (_borderlessEngine.IsBorderless(activeHwnd))
                         {
                             var curZone = _zoneEngine.GetWindowCurrentZone(activeHwnd);
-                            var rule = _borderlessEngine.FindRuleForWindow(activeHwnd);
-                            _borderlessEngine.ApplyBorderless(activeHwnd, rule, curZone);
+                            _borderlessEngine.ApplyBorderless(activeHwnd, curZone);
                         }
                     }
+                });
+            };
+
+            // Win + Ctrl + B: toggle borderless mode for the active window.
+            _keyboardHook.BorderlessTogglePressed += () =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    var activeHwnd = NativeMethods.GetForegroundWindow();
+                    _borderlessEngine.ToggleBorderless(activeHwnd);
                 });
             };
 
@@ -118,10 +140,10 @@ namespace WindowsSplitter.UI
             _isUpdatingUi = false;
             UpdateZoneVisualDisplay();
 
-            // Check if launched with autostart/minimized flags or setting
+            // Start in the tray when explicitly requested or configured in Settings.
             string[] args = Environment.GetCommandLineArgs();
-            bool isAutoStart = args.Any(a => a.Equals("--autostart", StringComparison.OrdinalIgnoreCase) || a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
-            if (isAutoStart || _settings.StartMinimizedToTray)
+            bool hasMinimizedArgument = args.Any(a => a.Equals("--minimized", StringComparison.OrdinalIgnoreCase));
+            if (hasMinimizedArgument || _settings.StartMinimizedToTray)
             {
                 this.WindowState = WindowState.Minimized;
                 this.Hide();
@@ -208,7 +230,6 @@ namespace WindowsSplitter.UI
             string onText = LocalizationManager.GetString("Str_BadgeHookEnabled");
             string offText = LocalizationManager.GetString("Str_BadgeHookDisabled");
             TxtHookStatus.Text = _settings.OverrideWindowsSnap ? onText : offText;
-            MenuHookStatus.IsChecked = _settings.OverrideWindowsSnap;
         }
 
         private void RefreshMonitorSelector()
@@ -230,8 +251,8 @@ namespace WindowsSplitter.UI
             else
             {
                 BadgeDuplicateMode.Visibility = Visibility.Collapsed;
-                TxtMonitorTopologyTag.Text = monitors.Count > 1 
-                    ? LocalizationManager.GetString("Msg_MultiDisplayExtend", monitors.Count) 
+                TxtMonitorTopologyTag.Text = monitors.Count > 1
+                    ? LocalizationManager.GetString("Msg_MultiDisplayExtend", monitors.Count)
                     : LocalizationManager.GetString("Msg_SingleDisplay");
             }
 
@@ -300,12 +321,7 @@ namespace WindowsSplitter.UI
                 ChkStartWithWindows.IsChecked = _settings.StartWithWindows || StartupManager.IsRunAtStartupEnabled();
                 ChkStartMinimized.IsChecked = _settings.StartMinimizedToTray;
                 ChkCloseToTray.IsChecked = _settings.CloseToTray;
-                ChkDefaultCoverTaskbar.IsChecked = _settings.DefaultCoverTaskbar;
-
                 RefreshPresetsForCurrentMonitor();
-
-                // Whitelist
-                RefreshWhitelistUi();
 
                 // Language & Status UI
                 SyncLanguageSelectorUi();
@@ -345,7 +361,6 @@ namespace WindowsSplitter.UI
                 RefreshPresetsForCurrentMonitor();
                 UpdateZoneVisualDisplay();
                 RefreshRunningAppsList();
-                RefreshWhitelistUi();
 
                 _isUpdatingUi = wasUpdating;
             });
@@ -368,15 +383,6 @@ namespace WindowsSplitter.UI
                     cmb.SelectedItem = item;
                     break;
                 }
-            }
-        }
-
-        private void RefreshWhitelistUi()
-        {
-            ListWhitelist.ItemsSource = null;
-            if (_settings != null)
-            {
-                ListWhitelist.ItemsSource = _settings.BorderlessWhitelist;
             }
         }
 
@@ -681,7 +687,7 @@ namespace WindowsSplitter.UI
             _settings.Save();
 
             bool success = StartupManager.SetRunAtStartup(enable, _settings.StartMinimizedToTray);
-            if (enable && !success)
+            if (enable && (!success || !StartupManager.IsTaskSchedulerEnabled()))
             {
                 MessageBox.Show(this, LocalizationManager.GetString("Msg_TaskSchedulerFailed"), LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
             }
@@ -694,8 +700,8 @@ namespace WindowsSplitter.UI
             UpdateZoneVisualDisplay();
 
             int count = MonitorManager.Instance.Monitors.Count;
-            string mode = MonitorManager.Instance.IsDuplicateMode 
-                ? LocalizationManager.GetString("Msg_ModeDuplicate") 
+            string mode = MonitorManager.Instance.IsDuplicateMode
+                ? LocalizationManager.GetString("Msg_ModeDuplicate")
                 : LocalizationManager.GetString("Msg_ModeExtend");
             MessageBox.Show(this, LocalizationManager.GetString("Msg_MonitorRefreshed", count, mode), LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
@@ -703,6 +709,8 @@ namespace WindowsSplitter.UI
         private void SettingChanged(object sender, RoutedEventArgs e)
         {
             if (_isUpdatingUi || _settings == null) return;
+
+            bool startMinimizedChanged = ReferenceEquals(sender, ChkStartMinimized);
 
             _settings.OverrideWindowsSnap = ChkOverrideSnap.IsChecked ?? true;
             _settings.EnableWinShiftMonitorMove = ChkWinShiftMonitorMove.IsChecked ?? true;
@@ -714,16 +722,21 @@ namespace WindowsSplitter.UI
             _settings.CloseToTray = ChkCloseToTray.IsChecked ?? false;
 
             _keyboardHook.OverrideWindowsSnap = _settings.OverrideWindowsSnap;
+            _keyboardHook.EnableWinShiftMonitorMove = _settings.EnableWinShiftMonitorMove;
             UpdateHookStatusText();
 
             _settings.Save();
-        }
 
-        private void ChkDefaultCoverTaskbar_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_isUpdatingUi || _settings == null) return;
-            _settings.DefaultCoverTaskbar = ChkDefaultCoverTaskbar.IsChecked ?? true;
-            _settings.Save();
+            if (startMinimizedChanged &&
+                (_settings.StartWithWindows || StartupManager.IsRunAtStartupEnabled()))
+            {
+                bool success = StartupManager.SetRunAtStartup(true, _settings.StartMinimizedToTray);
+                if (!success || !StartupManager.IsTaskSchedulerEnabled())
+                {
+                    MessageBox.Show(this, LocalizationManager.GetString("Msg_TaskSchedulerFailed"),
+                        LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
         }
 
         #region Borderless Manager Actions
@@ -732,7 +745,9 @@ namespace WindowsSplitter.UI
         {
             try
             {
-                _allRunningWindows = WindowEnumerator.GetRunningWindows(_borderlessEngine);
+                _allRunningWindows = WindowEnumerator.GetRunningWindows(
+                    _borderlessEngine,
+                    new WindowInteropHelper(this).Handle);
                 ApplyFilterToRunningApps();
             }
             catch (Exception ex)
@@ -776,110 +791,6 @@ namespace WindowsSplitter.UI
             }
         }
 
-        private void BtnAddToWhitelist_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.DataContext is RunningWindowItem item)
-            {
-                var curMon = MonitorManager.Instance.GetMonitorForWindow(item.Hwnd);
-                var curZone = _zoneEngine.GetWindowCurrentZone(item.Hwnd);
-                int zoneId = curZone?.Id ?? 2;
-                var dlg = new AddAppDialog(item.ProcessName, item.Title, curMon.DeviceName, zoneId)
-                {
-                    Owner = this
-                };
-
-                if (dlg.ShowDialog() == true && dlg.ResultRule != null)
-                {
-                    _settings.BorderlessWhitelist.Add(dlg.ResultRule);
-                    _settings.Save();
-                    RefreshWhitelistUi();
-                }
-            }
-        }
-
-        private void BtnAddAppManual_Click(object sender, RoutedEventArgs e)
-        {
-            var dlg = new AddAppDialog
-            {
-                Owner = this
-            };
-
-            if (dlg.ShowDialog() == true && dlg.ResultRule != null)
-            {
-                _settings.BorderlessWhitelist.Add(dlg.ResultRule);
-                _settings.Save();
-                RefreshWhitelistUi();
-            }
-        }
-
-        private void WhitelistSetting_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_isUpdatingUi || _settings == null) return;
-            _settings.Save();
-        }
-
-        private void BtnApplyWhitelistNow_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.DataContext is BorderlessAppRule rule)
-            {
-                RefreshRunningAppsList();
-                var match = _allRunningWindows.FirstOrDefault(w =>
-                    string.Equals(w.ProcessName, rule.ProcessName, StringComparison.OrdinalIgnoreCase) ||
-                    w.ProcessName.Contains(rule.ProcessName, StringComparison.OrdinalIgnoreCase)
-                );
-
-                if (match != null)
-                {
-                    _borderlessEngine.ApplyBorderless(match.Hwnd, rule);
-                    string msg = LocalizationManager.GetString("Msg_AppliedBorderlessSuccess", match.Title);
-                    string title = LocalizationManager.GetString("Msg_Notice");
-                    MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    string msg = LocalizationManager.GetString("Msg_AppWindowNotFound", rule.ProcessName);
-                    string title = LocalizationManager.GetString("Msg_Notice");
-                    MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-        }
-
-        private void BtnRestoreWhitelistWindow_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.DataContext is BorderlessAppRule rule)
-            {
-                RefreshRunningAppsList();
-                var match = _allRunningWindows.FirstOrDefault(w =>
-                    string.Equals(w.ProcessName, rule.ProcessName, StringComparison.OrdinalIgnoreCase)
-                );
-
-                if (match != null)
-                {
-                    _borderlessEngine.RestoreWindow(match.Hwnd);
-                    match.IsBorderless = _borderlessEngine.IsBorderless(match.Hwnd);
-                    string msg = LocalizationManager.GetString("Msg_RestoredWindowSuccess", match.Title);
-                    string title = LocalizationManager.GetString("Msg_Notice");
-                    MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-        }
-
-        private void BtnDeleteWhitelistRule_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.DataContext is BorderlessAppRule rule)
-            {
-                string confirmMsg = LocalizationManager.GetString("Msg_ConfirmDeleteRule", rule.DisplayName, rule.ProcessName);
-                string confirmTitle = LocalizationManager.GetString("Msg_ConfirmDeleteTitle");
-                var res = MessageBox.Show(this, confirmMsg, confirmTitle, MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (res == MessageBoxResult.Yes)
-                {
-                    _settings.BorderlessWhitelist.Remove(rule);
-                    _settings.Save();
-                    RefreshWhitelistUi();
-                }
-            }
-        }
-
         #endregion
 
         #region System Tray and Window Lifecycle
@@ -887,11 +798,15 @@ namespace WindowsSplitter.UI
         private void BtnMinimizeToTray_Click(object sender, RoutedEventArgs e)
         {
             this.Hide();
+            ShowTrayBalloonTip();
+        }
+
+        private void ShowTrayBalloonTip()
+        {
             TrayIcon.ShowBalloonTip(
                 "Windows Splitter",
                 LocalizationManager.GetString("Msg_BalloonTipContent"),
-                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info
-            );
+                Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
         }
 
         private void TrayIcon_DoubleClick(object sender, RoutedEventArgs e)
@@ -918,7 +833,7 @@ namespace WindowsSplitter.UI
         private void MenuToggleHook_Click(object sender, RoutedEventArgs e)
         {
             if (_settings == null) return;
-            _settings.OverrideWindowsSnap = MenuHookStatus.IsChecked;
+            _settings.OverrideWindowsSnap = ChkOverrideSnap.IsChecked == true;
             ChkOverrideSnap.IsChecked = _settings.OverrideWindowsSnap;
             _keyboardHook.OverrideWindowsSnap = _settings.OverrideWindowsSnap;
             TxtHookStatus.Text = _settings.OverrideWindowsSnap ? "⚡ Win+Arrow: BẬT" : "⚪ Win+Arrow: TẮT";
@@ -964,7 +879,7 @@ namespace WindowsSplitter.UI
             {
                 e.Cancel = true;
                 this.Hide();
-                TrayIcon.ShowBalloonTip("WindowsSplitter", "Ứng dụng đang chạy ngầm trong khay hệ thống.", Hardcodet.Wpf.TaskbarNotification.BalloonIcon.Info);
+                ShowTrayBalloonTip();
                 return;
             }
 

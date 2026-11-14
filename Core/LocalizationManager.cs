@@ -1,6 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Windows;
 
 namespace WindowsSplitter.Core
@@ -47,7 +45,7 @@ namespace WindowsSplitter.Core
 
                 // Locate existing language dictionary in Application resources if present
                 var appDictionaries = Application.Current.Resources.MergedDictionaries;
-                var oldDict = appDictionaries.FirstOrDefault(d => 
+                var oldDict = appDictionaries.FirstOrDefault(d =>
                     d.Source != null && (d.Source.OriginalString.Contains("Strings.en.xaml") || d.Source.OriginalString.Contains("Strings.vi.xaml")));
 
                 if (oldDict != null)

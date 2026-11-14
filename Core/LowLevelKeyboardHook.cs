@@ -16,12 +16,15 @@ namespace WindowsSplitter.Core
         private IntPtr _hookId = IntPtr.Zero;
         private readonly NativeMethods.LowLevelKeyboardProc _proc;
         private bool _isWinDown = false;
+        private bool _isBorderlessToggleDown = false;
 
         public bool OverrideWindowsSnap { get; set; } = true;
+        public bool EnableWinShiftMonitorMove { get; set; } = true;
         public bool IsRunning => _hookId != IntPtr.Zero;
 
         public event Action<KeyDirection>? HotKeyPressed;
         public event Action<KeyDirection>? HotKeyPressedWithShift;
+        public event Action? BorderlessTogglePressed;
 
         public LowLevelKeyboardHook()
         {
@@ -57,6 +60,29 @@ namespace WindowsSplitter.Core
                 uint vkCode = hookStruct.vkCode;
                 int message = wParam.ToInt32();
 
+                if (vkCode == NativeMethods.VK_B)
+                {
+                    if (message == NativeMethods.WM_KEYUP || message == NativeMethods.WM_SYSKEYUP)
+                    {
+                        _isBorderlessToggleDown = false;
+                    }
+                    else if (!_isBorderlessToggleDown &&
+                             (message == NativeMethods.WM_KEYDOWN || message == NativeMethods.WM_SYSKEYDOWN))
+                    {
+                        bool isCtrl = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
+                        bool isShift = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_SHIFT) & 0x8000) != 0;
+                        bool isWin = _isWinDown ||
+                            (NativeMethods.GetAsyncKeyState(NativeMethods.VK_LWIN) & 0x8000) != 0 ||
+                            (NativeMethods.GetAsyncKeyState(NativeMethods.VK_RWIN) & 0x8000) != 0;
+                        if (isWin && isCtrl && !isShift)
+                        {
+                            _isBorderlessToggleDown = true;
+                            BorderlessTogglePressed?.Invoke();
+                            return (IntPtr)1;
+                        }
+                    }
+                }
+
                 // Track Win key state
                 if (vkCode == NativeMethods.VK_LWIN || vkCode == NativeMethods.VK_RWIN)
                 {
@@ -91,15 +117,18 @@ namespace WindowsSplitter.Core
                             _ => null
                         };
 
-                        if (direction.HasValue && OverrideWindowsSnap)
+                        if (direction.HasValue)
                         {
                             if (isShift)
                             {
-                                // Win + Shift + Arrow: Move between monitors
-                                HotKeyPressedWithShift?.Invoke(direction.Value);
-                                return (IntPtr)1;
+                                if (EnableWinShiftMonitorMove)
+                                {
+                                    // Win + Shift + Arrow: Move between monitors
+                                    HotKeyPressedWithShift?.Invoke(direction.Value);
+                                    return (IntPtr)1;
+                                }
                             }
-                            else
+                            else if (OverrideWindowsSnap)
                             {
                                 // Win + Arrow: Move between zones
                                 HotKeyPressed?.Invoke(direction.Value);
