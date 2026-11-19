@@ -56,8 +56,8 @@ for %%F in ("%~dp0output\WindowsSplitter-Setup-*-x64.exe") do (
 )
 
 echo ========================================================
-echo SUCCESS! Installer created at:
-echo %~dp0output\WindowsSplitter-Setup-1.0.0-x64.exe
+echo SUCCESS! Installer created in:
+echo %~dp0output\
 echo SHA-256 checksum generated alongside the installer (.sha256).
 echo ========================================================
 popd

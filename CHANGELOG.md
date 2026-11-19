@@ -4,6 +4,8 @@ Tất cả các thay đổi đáng chú ý của dự án **Windows Splitter** �
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-19
+
 ### Added
 - **Trình chỉnh sửa chia vùng 2D đệ quy (`ZoneSplitNode`):** Cho phép tách bất kỳ vùng nào theo chiều dọc hoặc chiều ngang để tạo nhiều vùng không bao giờ chồng chéo, kéo thả trực tiếp các đường phân chia trên `CanvasZoneEditor`, và tự đánh số `Zone 1..N` từ trên xuống dưới, trái sang phải.
 - **Chuyển đổi đơn vị Pixel / Phần trăm (`%`):** Hỗ trợ nhập thông số `X, Y, Width, Height` theo Pixel hoặc `%` trong bảng chỉnh sửa vùng và tự động đồng bộ vào cây chia vùng.

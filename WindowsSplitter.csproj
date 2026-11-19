@@ -10,6 +10,7 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>WindowsSplitter</AssemblyName>
     <RootNamespace>WindowsSplitter</RootNamespace>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
