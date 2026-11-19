@@ -1,6 +1,9 @@
 #define MyAppName "Windows Splitter"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "Windows Splitter"
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
+#define MyAppPublisher "LoiCao (Thanhloi-lab)"
+#define MyAppURL "https://github.com/Thanhloi-lab/Window_Splitter"
 #define MyAppExeName "WindowsSplitter.exe"
 
 [Setup]
@@ -8,6 +11,9 @@ AppId={{8174DB58-6070-4C37-A235-49BB6B6EB801}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}/issues
+AppUpdatesURL={#MyAppURL}/releases
 LicenseFile=License.txt
 DefaultDirName={autopf}\Windows Splitter
 DefaultGroupName={#MyAppName}
@@ -32,6 +38,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 [Files]
 Source: "..\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "License.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Windows Splitter"; Filename: "{app}\{#MyAppExeName}"

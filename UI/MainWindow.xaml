@@ -236,8 +236,7 @@
                     <!-- Language Selector Pill -->
                     <Border Background="#252525" BorderBrush="#444444" BorderThickness="1" CornerRadius="5" Padding="6,2" Margin="0,0,10,0">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="🌐" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" />
-                            <ComboBox x:Name="CmbLanguageHeader" Width="105" MinHeight="26" Padding="4,2" FontSize="11" SelectionChanged="CmbLanguage_SelectionChanged">
+                            <ComboBox x:Name="CmbLanguageHeader" Width="110" MinHeight="26" Padding="6,2" FontSize="11" SelectionChanged="CmbLanguage_SelectionChanged">
                                 <ComboBoxItem Content="English" Tag="en" />
                                 <ComboBoxItem Content="Tiếng Việt" Tag="vi" />
                             </ComboBox>
@@ -277,6 +276,8 @@
                         <Border Style="{StaticResource ModernCard}" Margin="0,0,0,14">
                             <Grid>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -323,126 +324,95 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Visual Monitor Diagram -->
-                                <Border Grid.Row="3" Background="#111111" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Height="140" Padding="10">
-                                    <Grid x:Name="GridMonitorVisual">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition x:Name="ColVisualZone1" Width="1*" />
-                                            <ColumnDefinition x:Name="ColVisualZone2" Width="1*" />
-                                        </Grid.ColumnDefinitions>
+                                <!-- Editor Toolbar -->
+                                <Grid Grid.Row="3" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
 
-                                        <!-- Visual Zone 1 -->
-                                        <Border x:Name="BorderVisualZone1" Grid.Column="0" Background="#220078D4" BorderBrush="#0078D4" BorderThickness="2" CornerRadius="4" Margin="2">
-                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="{DynamicResource Str_VisualZone1Title}" FontSize="12" FontWeight="Bold" Foreground="#4CC2FF" HorizontalAlignment="Center" />
-                                                <TextBlock x:Name="TxtVisualZone1Size" Text="" FontSize="11" Foreground="#A0FFFFFF" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                                            </StackPanel>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="BtnSplitVertical" Style="{StaticResource SecondaryBtn}" Content="{DynamicResource Str_BtnSplitVertical}" Margin="0,0,8,0" Padding="10,5" Click="BtnSplitVertical_Click" />
+                                        <Button x:Name="BtnSplitHorizontal" Style="{StaticResource SecondaryBtn}" Content="{DynamicResource Str_BtnSplitHorizontal}" Margin="0,0,8,0" Padding="10,5" Click="BtnSplitHorizontal_Click" />
+                                        <Button x:Name="BtnRemoveZone" Style="{StaticResource DangerBtn}" Content="{DynamicResource Str_BtnRemoveZone}" Margin="0,0,12,0" Padding="10,5" Click="BtnRemoveZone_Click" />
+                                        <Border Background="#1D3144" BorderBrush="#2A4F70" BorderThickness="1" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                                            <TextBlock x:Name="TxtZoneCountBadge" Text="2 Zones" FontSize="11" FontWeight="SemiBold" Foreground="#4CC2FF" />
                                         </Border>
+                                    </StackPanel>
 
-                                        <!-- Visual Zone 2 -->
-                                        <Border x:Name="BorderVisualZone2" Grid.Column="1" Background="#222B5797" BorderBrush="#5078FF" BorderThickness="2" CornerRadius="4" Margin="2">
-                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <TextBlock Text="{DynamicResource Str_VisualZone2Title}" FontSize="13" FontWeight="Bold" Foreground="#82B1FF" HorizontalAlignment="Center" />
-                                                <TextBlock x:Name="TxtVisualZone2Size" Text="" FontSize="12" Foreground="#FFFFFF" HorizontalAlignment="Center" Margin="0,2,0,0" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Str_ZoneGapLabel}" VerticalAlignment="Center" Foreground="#CCCCCC" FontSize="12" Margin="0,0,8,0" />
+                                        <Slider x:Name="SliderZoneGap" Width="120" Minimum="0" Maximum="32" TickFrequency="2" IsSnapToTickEnabled="True" VerticalAlignment="Center" ValueChanged="SliderZoneGap_ValueChanged" />
+                                        <TextBlock x:Name="TxtZoneGapValue" Text="0 px" Width="44" TextAlignment="Right" VerticalAlignment="Center" Foreground="#4CC2FF" FontWeight="SemiBold" FontSize="12" Margin="6,0,0,0" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Interactive 2D Split Monitor Canvas -->
+                                <Border Grid.Row="4" Background="#111111" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Height="236" Padding="12" SizeChanged="ZonePreviewHost_SizeChanged">
+                                    <Canvas x:Name="CanvasZoneEditor" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="True" />
                                 </Border>
+
+                                <TextBlock Grid.Row="5" Text="{DynamicResource Str_ZoneEditorHint}" FontSize="11" Foreground="#888888" Margin="0,8,0,0" />
                             </Grid>
                         </Border>
 
-                        <!-- Zone Coordinates & Ratio Slider -->
+                        <!-- Selected Zone Coordinates & Dimensions -->
                         <Border Style="{StaticResource ModernCard}" Margin="0,0,0,14">
                             <StackPanel>
-                                <TextBlock Text="{DynamicResource Str_TuneCoordinatesTitle}" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,12" />
-
-                                <!-- Slider for Ratio -->
-                                <Grid Margin="0,0,0,14">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
-                                        <TextBlock Text="{DynamicResource Str_SplitRatioSliderLabel}" Foreground="#CCCCCC" FontSize="12" />
-                                        <TextBlock x:Name="TxtSliderRatioValue" Text="" FontWeight="Bold" Foreground="#4CC2FF" FontSize="12" Margin="6,0,0,0" />
-                                    </StackPanel>
-                                    <Slider x:Name="SliderZoneSplit" Grid.Row="1" Minimum="50" Maximum="1920" ValueChanged="SliderZoneSplit_ValueChanged" TickFrequency="20" IsSnapToTickEnabled="False" />
-                                </Grid>
-
-                                <!-- Numeric Inputs for Zones -->
-                                <Grid>
+                                <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="16" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Zone 1 Form -->
-                                    <Border Grid.Column="0" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="14">
-                                        <StackPanel>
-                                            <TextBlock Text="{DynamicResource Str_Zone1Config}" FontWeight="Bold" Foreground="#4CC2FF" Margin="0,0,0,10" />
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="14" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{DynamicResource Str_CoordX}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone1X" Grid.Column="1" Text="0" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                                <TextBlock Grid.Column="3" Text="{DynamicResource Str_CoordY}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone1Y" Grid.Column="4" Text="0" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                            </Grid>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="14" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{DynamicResource Str_CoordWidth}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone1W" Grid.Column="1" Text="" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                                <TextBlock Grid.Column="3" Text="{DynamicResource Str_CoordHeight}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone1H" Grid.Column="4" Text="" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
+                                    <TextBlock Grid.Column="0" Text="{DynamicResource Str_TuneCoordinatesTitle}" FontSize="15" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" />
 
-                                    <!-- Zone 2 Form -->
-                                    <Border Grid.Column="2" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="14">
-                                        <StackPanel>
-                                            <TextBlock Text="{DynamicResource Str_Zone2Config}" FontWeight="Bold" Foreground="#82B1FF" Margin="0,0,0,10" />
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="14" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{DynamicResource Str_CoordX}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone2X" Grid.Column="1" Text="" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                                <TextBlock Grid.Column="3" Text="{DynamicResource Str_CoordY}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone2Y" Grid.Column="4" Text="0" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                            </Grid>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="14" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{DynamicResource Str_CoordWidth}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone2W" Grid.Column="1" Text="" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                                <TextBlock Grid.Column="3" Text="{DynamicResource Str_CoordHeight}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
-                                                <TextBox x:Name="TxtZone2H" Grid.Column="4" Text="" Background="#262626" Foreground="#FFF" Padding="6,4" TextChanged="ZoneInput_TextChanged" />
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{DynamicResource Str_SelectedZoneLabel}" Foreground="#CCCCCC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <ComboBox x:Name="CmbSelectedZone" Width="130" MinHeight="28" Padding="8,4" Margin="0,0,16,0" SelectionChanged="CmbSelectedZone_SelectionChanged" />
+
+                                        <TextBlock Text="{DynamicResource Str_UnitModeLabel}" Foreground="#CCCCCC" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <RadioButton x:Name="RdoUnitPixels" Content="{DynamicResource Str_UnitPixels}" GroupName="ZoneUnitMode" IsChecked="True" Foreground="#EEEEEE" VerticalAlignment="Center" Margin="0,0,12,0" Cursor="Hand" Checked="UnitMode_Changed" />
+                                        <RadioButton x:Name="RdoUnitPercent" Content="{DynamicResource Str_UnitPercent}" GroupName="ZoneUnitMode" Foreground="#EEEEEE" VerticalAlignment="Center" Cursor="Hand" Checked="UnitMode_Changed" />
+                                    </StackPanel>
                                 </Grid>
+
+                                <!-- Precision Numeric Inputs for Selected Zone -->
+                                <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="14">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="14" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock x:Name="LblCoordX" Grid.Column="0" Text="{DynamicResource Str_CoordX}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBox x:Name="TxtZoneX" Grid.Column="1" Text="0" Background="#262626" Foreground="#FFFFFF" BorderBrush="#444444" BorderThickness="1" Padding="8,5" KeyDown="ZoneInput_KeyDown" />
+
+                                        <TextBlock x:Name="LblCoordY" Grid.Column="3" Text="{DynamicResource Str_CoordY}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBox x:Name="TxtZoneY" Grid.Column="4" Text="0" Background="#262626" Foreground="#FFFFFF" BorderBrush="#444444" BorderThickness="1" Padding="8,5" KeyDown="ZoneInput_KeyDown" />
+
+                                        <TextBlock x:Name="LblCoordW" Grid.Column="6" Text="{DynamicResource Str_CoordWidth}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBox x:Name="TxtZoneW" Grid.Column="7" Text="880" Background="#262626" Foreground="#FFFFFF" BorderBrush="#444444" BorderThickness="1" Padding="8,5" KeyDown="ZoneInput_KeyDown" />
+
+                                        <TextBlock x:Name="LblCoordH" Grid.Column="9" Text="{DynamicResource Str_CoordHeight}" FontWeight="SemiBold" Foreground="#D0D0D0" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <TextBox x:Name="TxtZoneH" Grid.Column="10" Text="1392" Background="#262626" Foreground="#FFFFFF" BorderBrush="#444444" BorderThickness="1" Padding="8,5" KeyDown="ZoneInput_KeyDown" />
+
+                                        <Button x:Name="BtnApplyZoneBounds" Grid.Column="12" Style="{StaticResource SecondaryBtn}" Content="{DynamicResource Str_BtnApplyZoneBounds}" Padding="12,5" Click="BtnApplyZoneBounds_Click" />
+                                    </Grid>
+                                </Border>
 
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
                                     <TextBlock x:Name="TxtSavePresetHint" Text="{DynamicResource Str_SavePresetHintDefault}" Foreground="#FFA726" VerticalAlignment="Center" Margin="0,0,14,0" FontSize="12" Visibility="Collapsed" />
@@ -604,6 +574,7 @@
                                     <CheckBox x:Name="ChkInvisibleBorderComp" Style="{StaticResource ModernCheckBox}" Content="{DynamicResource Str_InvisibleBorderComp}" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
                                     <CheckBox x:Name="ChkDisableRoundedCorners" Style="{StaticResource ModernCheckBox}" Content="{DynamicResource Str_DisableRoundedCorners}" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
                                     <CheckBox x:Name="ChkShowZoneOverlay" Style="{StaticResource ModernCheckBox}" Content="{DynamicResource Str_ShowZoneOverlay}" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
+                                    <CheckBox x:Name="ChkPreventTopEdgeMaximize" Style="{StaticResource ModernCheckBox}" Content="{DynamicResource Str_PreventTopEdgeMaximize}" IsChecked="True" Checked="SettingChanged" Unchecked="SettingChanged" />
                                 </StackPanel>
                             </Border>
 

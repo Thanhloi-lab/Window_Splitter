@@ -24,10 +24,14 @@ if errorlevel 1 (
     goto :failed
 )
 
-rem Find Inno Setup from PATH or its standard per-user/system install locations.
+rem Find Inno Setup from INNO_SETUP_COMPILER, PATH, or its standard per-user/system install locations.
 set "ISCC="
-where ISCC.exe >nul 2>nul
-if not errorlevel 1 set "ISCC=ISCC.exe"
+if defined INNO_SETUP_COMPILER if exist "%INNO_SETUP_COMPILER%" set "ISCC=%INNO_SETUP_COMPILER%"
+if not defined ISCC (
+    where ISCC.exe >nul 2>nul
+    if not errorlevel 1 set "ISCC=ISCC.exe"
+)
+if not defined ISCC if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 if not defined ISCC if exist "%LOCALAPPDATA%\Programs\InnoSetup\ISCC.exe" set "ISCC=%LOCALAPPDATA%\Programs\InnoSetup\ISCC.exe"
 if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
@@ -47,9 +51,14 @@ if not "%ISCC_EXIT_CODE%"=="0" (
     goto :failed
 )
 
+for %%F in ("%~dp0output\WindowsSplitter-Setup-*-x64.exe") do (
+    powershell -NoProfile -Command "$h=(Get-FileHash -Algorithm SHA256 '%%~fF').Hash.ToLower(); Set-Content -Path '%%~fF.sha256' -Value ($h + '  ' + '%%~nxF')" >nul 2>nul
+)
+
 echo ========================================================
 echo SUCCESS! Installer created at:
 echo %~dp0output\WindowsSplitter-Setup-1.0.0-x64.exe
+echo SHA-256 checksum generated alongside the installer (.sha256).
 echo ========================================================
 popd
 pause

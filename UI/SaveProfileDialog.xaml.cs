@@ -10,14 +10,25 @@ namespace WindowsSplitter.UI
 
         private readonly int _screenWidth;
         private readonly int _screenHeight;
+        private readonly int _zoneGap;
+        private readonly ZoneSplitNode? _splitRoot;
         private readonly List<Zone> _zonesToSave;
 
-        public SaveProfileDialog(string defaultName, int screenWidth, int screenHeight, List<Zone> currentZones, string monitorName = "")
+        public SaveProfileDialog(
+            string defaultName,
+            int screenWidth,
+            int screenHeight,
+            List<Zone> currentZones,
+            string monitorName = "",
+            ZoneSplitNode? splitRoot = null,
+            int zoneGap = 0)
         {
             InitializeComponent();
 
             _screenWidth = screenWidth;
             _screenHeight = screenHeight;
+            _zoneGap = zoneGap;
+            _splitRoot = splitRoot?.Clone();
             _zonesToSave = currentZones.Select(z => z.Clone()).ToList();
 
             TxtProfileName.Text = defaultName;
@@ -25,23 +36,14 @@ namespace WindowsSplitter.UI
             TxtProfileName.Focus();
 
             bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
-            string z1Label = isEn ? "Zone 1" : "Vùng 1";
-            string z2Label = isEn ? "Zone 2" : "Vùng 2";
-
-            if (_zonesToSave.Count >= 2)
-            {
-                TxtDimensionsSummary.Text = $"{z1Label}: {_zonesToSave[0].Width} × {_zonesToSave[0].Height} px  |  {z2Label}: {_zonesToSave[1].Width} × {_zonesToSave[1].Height} px";
-            }
-            else if (_zonesToSave.Count == 1)
-            {
-                TxtDimensionsSummary.Text = $"{z1Label}: {_zonesToSave[0].Width} × {_zonesToSave[0].Height} px";
-            }
+            TxtDimensionsSummary.Text = string.Join("  |  ",
+                _zonesToSave.Select(z => $"{z.LocalizedName}: {z.Width} x {z.Height} px ({z.PercentWidth:0.#}% x {z.PercentHeight:0.#}%)"));
 
             string monLabel = LocalizationManager.GetString("Str_MonitorSummaryLabel");
-            TxtMonitorSummary.Text = $"{monLabel} {monitorName} ({screenWidth} × {screenHeight})";
+            TxtMonitorSummary.Text = $"{monLabel} {monitorName} ({screenWidth} x {screenHeight})";
             TxtProfileDesc.Text = isEn
-                ? $"Custom Profile for {screenWidth} × {screenHeight}"
-                : $"Profile tùy chỉnh cho màn hình {screenWidth} × {screenHeight}";
+                ? $"Custom Profile for {screenWidth} x {screenHeight} ({_zonesToSave.Count} Zones)"
+                : $"Profile tùy chỉnh cho màn hình {screenWidth} x {screenHeight} ({_zonesToSave.Count} Vùng)";
         }
 
         private void BtnSave_Click(object sender, RoutedEventArgs e)
@@ -62,15 +64,9 @@ namespace WindowsSplitter.UI
 
             string newId = "custom_" + Guid.NewGuid().ToString("N")[..8];
 
-            ResultPreset = new ZonePreset(
-                newId,
-                name,
-                desc,
-                _screenWidth,
-                _screenHeight,
-                _zonesToSave,
-                isDefault: false
-            );
+            ResultPreset = _splitRoot != null
+                ? new ZonePreset(newId, name, desc, _screenWidth, _screenHeight, _splitRoot, isDefault: false, zoneGap: _zoneGap)
+                : new ZonePreset(newId, name, desc, _screenWidth, _screenHeight, _zonesToSave, isDefault: false) { ZoneGap = _zoneGap };
 
             DialogResult = true;
             Close();

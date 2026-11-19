@@ -1,8 +1,11 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Security.Principal;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using WindowsSplitter.Core;
 using WindowsSplitter.Models;
 
@@ -15,10 +18,20 @@ namespace WindowsSplitter.UI
         private readonly BorderlessEngine _borderlessEngine;
         private readonly WinEventHookService _winEventHookService;
         private readonly LowLevelKeyboardHook _keyboardHook;
+        private readonly TopEdgeSnapGuard _topEdgeSnapGuard;
         private ZoneOverlayWindow? _overlayWindow;
 
         private List<RunningWindowItem> _allRunningWindows = new();
         private MonitorInfoItem? _currentSelectedMonitor;
+        private ZonePreset? _workingPreset;
+        private int _selectedZoneId = 1;
+        private bool _usePercentUnit = false;
+        private double _previewScale = 1.0;
+        private double _previewHostWidth = 960;
+        private double _previewHostHeight = 212;
+        private SplitDividerInfo? _draggingDivider;
+        private Point _dragStartPoint;
+        private int _dragStartLinePos;
         private bool _isUpdatingUi = true;
         private bool _isReallyExiting = false;
 
@@ -35,6 +48,7 @@ namespace WindowsSplitter.UI
                 OverrideWindowsSnap = _settings.OverrideWindowsSnap,
                 EnableWinShiftMonitorMove = _settings.EnableWinShiftMonitorMove
             };
+            _topEdgeSnapGuard = new TopEdgeSnapGuard(_settings, _zoneEngine);
 
             InitializeComponent();
 
@@ -131,6 +145,11 @@ namespace WindowsSplitter.UI
             // Start background services
             _keyboardHook.Start();
             _winEventHookService.Start();
+            _topEdgeSnapGuard.Start();
+
+            CanvasZoneEditor.MouseMove += CanvasZoneEditor_MouseMove;
+            CanvasZoneEditor.MouseLeftButtonUp += CanvasZoneEditor_MouseLeftButtonUp;
+            CanvasZoneEditor.LostMouseCapture += CanvasZoneEditor_LostMouseCapture;
 
             // Populate UI
             RefreshMonitorSelector();
@@ -138,6 +157,7 @@ namespace WindowsSplitter.UI
             RefreshRunningAppsList();
 
             _isUpdatingUi = false;
+            SyncWorkingPresetFromSelection();
             UpdateZoneVisualDisplay();
 
             // Start in the tray when explicitly requested or configured in Settings.
@@ -185,6 +205,8 @@ namespace WindowsSplitter.UI
                 Dispatcher.Invoke(() =>
                 {
                     RefreshMonitorSelector();
+                    RefreshPresetsForCurrentMonitor();
+                    SyncWorkingPresetFromSelection();
                     UpdateZoneVisualDisplay();
                 });
             }
@@ -260,6 +282,10 @@ namespace WindowsSplitter.UI
             var target = MonitorManager.Instance.GetPrimaryMonitor() ?? monitors.FirstOrDefault();
             CmbMonitors.SelectedItem = target;
             _currentSelectedMonitor = target;
+            if (target != null)
+            {
+                TxtMonitorDpiBadge.Text = $"DPI: {(int)Math.Round(target.DpiScaleX * 100)}%";
+            }
 
             _isUpdatingUi = wasUpdating;
         }
@@ -300,6 +326,7 @@ namespace WindowsSplitter.UI
                 TxtMonitorDpiBadge.Text = $"DPI: {(int)Math.Round(monitor.DpiScaleX * 100)}%";
 
                 RefreshPresetsForCurrentMonitor();
+                SyncWorkingPresetFromSelection();
                 UpdateZoneVisualDisplay();
             }
         }
@@ -318,6 +345,7 @@ namespace WindowsSplitter.UI
                 ChkInvisibleBorderComp.IsChecked = _settings.DwmInvisibleBorderCompensation;
                 ChkDisableRoundedCorners.IsChecked = _settings.DisableWin11RoundedCorners;
                 ChkShowZoneOverlay.IsChecked = _settings.ShowZoneOverlayOnSnap;
+                ChkPreventTopEdgeMaximize.IsChecked = _settings.PreventAccidentalTopEdgeMaximize;
                 ChkStartWithWindows.IsChecked = _settings.StartWithWindows || StartupManager.IsRunAtStartupEnabled();
                 ChkStartMinimized.IsChecked = _settings.StartMinimizedToTray;
                 ChkCloseToTray.IsChecked = _settings.CloseToTray;
@@ -393,20 +421,61 @@ namespace WindowsSplitter.UI
             return _settings.GetPresetForMonitor(_currentSelectedMonitor);
         }
 
+        private (int Width, int Height) GetPreviewMonitorDimensions()
+        {
+            if (_currentSelectedMonitor != null && _currentSelectedMonitor.WorkArea.Width > 0 && _currentSelectedMonitor.WorkArea.Height > 0)
+            {
+                return (_currentSelectedMonitor.WorkArea.Width, _currentSelectedMonitor.WorkArea.Height);
+            }
+            if (_currentSelectedMonitor != null && _currentSelectedMonitor.Width > 0 && _currentSelectedMonitor.Height > 0)
+            {
+                return (_currentSelectedMonitor.Width, _currentSelectedMonitor.Height);
+            }
+            return (1920, 1080);
+        }
+
+        private void SyncWorkingPresetFromSelection()
+        {
+            var preset = GetCurrentMonitorActivePreset();
+            if (preset == null)
+            {
+                _workingPreset = null;
+                return;
+            }
+
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            _workingPreset = preset.IsDefault ? preset.Clone() : preset;
+            _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+
+            if (_workingPreset.Zones.All(z => z.Id != _selectedZoneId))
+            {
+                _selectedZoneId = _workingPreset.Zones.FirstOrDefault()?.Id ?? 1;
+            }
+        }
+
         private void UpdateZoneVisualDisplay()
         {
             if (_settings == null) return;
-            var preset = GetCurrentMonitorActivePreset();
-            if (preset == null || preset.Zones.Count == 0) return;
+            var activePreset = GetCurrentMonitorActivePreset();
+            if (activePreset == null) return;
 
-            TxtPresetDescription.Text = preset.Description;
+            if (_workingPreset == null || _workingPreset.Id != activePreset.Id)
+            {
+                SyncWorkingPresetFromSelection();
+            }
 
-            // Visual feedback: Default Template vs Custom Profile
-            if (preset.IsDefault)
+            if (_workingPreset == null || _workingPreset.Zones.Count == 0) return;
+
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+
+            TxtPresetDescription.Text = activePreset.Description;
+
+            if (activePreset.IsDefault)
             {
                 TxtPresetTypeBadge.Text = LocalizationManager.GetString("Str_BadgeDefault");
-                TxtPresetTypeBadge.Foreground = System.Windows.Media.Brushes.LightGray;
-                BadgePresetType.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#333333")!;
+                TxtPresetTypeBadge.Foreground = Brushes.LightGray;
+                BadgePresetType.Background = (Brush)new BrushConverter().ConvertFromString("#333333")!;
 
                 BtnDeleteProfile.Visibility = Visibility.Collapsed;
                 BtnSaveZoneSettings.IsEnabled = false;
@@ -417,8 +486,8 @@ namespace WindowsSplitter.UI
             else
             {
                 TxtPresetTypeBadge.Text = LocalizationManager.GetString("Str_BadgeCustom");
-                TxtPresetTypeBadge.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#81C784")!;
-                BadgePresetType.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#1B5E20")!;
+                TxtPresetTypeBadge.Foreground = (Brush)new BrushConverter().ConvertFromString("#81C784")!;
+                BadgePresetType.Background = (Brush)new BrushConverter().ConvertFromString("#1B5E20")!;
 
                 BtnDeleteProfile.Visibility = Visibility.Visible;
                 BtnSaveZoneSettings.IsEnabled = true;
@@ -427,41 +496,278 @@ namespace WindowsSplitter.UI
                 TxtSavePresetHint.Visibility = Visibility.Collapsed;
             }
 
-            if (preset.Zones.Count >= 2)
+            bool wasUpdating = _isUpdatingUi;
+            _isUpdatingUi = true;
+
+            SliderZoneGap.Value = _workingPreset.ZoneGap;
+            TxtZoneGapValue.Text = $"{_workingPreset.ZoneGap} px";
+
+            bool isEn = LocalizationManager.CurrentLanguage == LocalizationManager.LangEnglish;
+            int count = _workingPreset.Zones.Count;
+            TxtZoneCountBadge.Text = isEn ? $"{count} Zones" : $"{count} Vùng";
+            BtnRemoveZone.IsEnabled = count > 1;
+
+            CmbSelectedZone.ItemsSource = _workingPreset.Zones;
+            CmbSelectedZone.DisplayMemberPath = "LocalizedName";
+            CmbSelectedZone.SelectedValuePath = "Id";
+            if (_workingPreset.Zones.All(z => z.Id != _selectedZoneId))
             {
-                var z1 = preset.Zones[0];
-                var z2 = preset.Zones[1];
+                _selectedZoneId = _workingPreset.Zones[0].Id;
+            }
+            CmbSelectedZone.SelectedValue = _selectedZoneId;
 
-                TxtZone1X.Text = z1.X.ToString();
-                TxtZone1Y.Text = z1.Y.ToString();
-                TxtZone1W.Text = z1.Width.ToString();
-                TxtZone1H.Text = z1.Height.ToString();
+            _isUpdatingUi = wasUpdating;
 
-                TxtZone2X.Text = z2.X.ToString();
-                TxtZone2Y.Text = z2.Y.ToString();
-                TxtZone2W.Text = z2.Width.ToString();
-                TxtZone2H.Text = z2.Height.ToString();
+            RenderZoneCanvas();
+            PopulateSelectedZoneInspector();
+        }
 
-                int totalW = z1.Width + z2.Width;
-                if (_currentSelectedMonitor != null && _currentSelectedMonitor.Width > 0)
+        private void RenderZoneCanvas()
+        {
+            if (_workingPreset == null) return;
+
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+
+            double availW = Math.Max(120, _previewHostWidth);
+            double availH = Math.Max(80, _previewHostHeight);
+            _previewScale = Math.Min(availW / monW, availH / monH);
+
+            CanvasZoneEditor.Width = Math.Max(60, monW * _previewScale);
+            CanvasZoneEditor.Height = Math.Max(40, monH * _previewScale);
+            CanvasZoneEditor.Children.Clear();
+
+            var selectedBg = (Brush)new BrushConverter().ConvertFromString("#330078D4")!;
+            var selectedBorder = (Brush)new BrushConverter().ConvertFromString("#4CC2FF")!;
+            var normalBg = (Brush)new BrushConverter().ConvertFromString("#221E3557")!;
+            var normalBorder = (Brush)new BrushConverter().ConvertFromString("#3B6BA5")!;
+
+            foreach (var zone in _workingPreset.Zones)
+            {
+                bool isSelected = zone.Id == _selectedZoneId;
+                double zx = zone.X * _previewScale;
+                double zy = zone.Y * _previewScale;
+                double zw = Math.Max(16, zone.Width * _previewScale);
+                double zh = Math.Max(16, zone.Height * _previewScale);
+
+                var labelStack = new StackPanel
                 {
-                    totalW = _currentSelectedMonitor.Width;
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+
+                labelStack.Children.Add(new TextBlock
+                {
+                    Text = zone.LocalizedName,
+                    FontSize = zw < 90 || zh < 55 ? 10 : 12,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = isSelected ? selectedBorder : Brushes.White,
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+
+                if (zw >= 72 && zh >= 48)
+                {
+                    labelStack.Children.Add(new TextBlock
+                    {
+                        Text = $"{zone.Width} x {zone.Height}",
+                        FontSize = 10,
+                        Foreground = Brushes.LightGray,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new Thickness(0, 2, 0, 0)
+                    });
                 }
 
-                SliderZoneSplit.Minimum = 50;
-                SliderZoneSplit.Maximum = Math.Max(100, totalW - 50);
-                SliderZoneSplit.Value = z1.Width;
+                if (zw >= 90 && zh >= 66)
+                {
+                    labelStack.Children.Add(new TextBlock
+                    {
+                        Text = $"{zone.PercentWidth:0.#}% x {zone.PercentHeight:0.#}%",
+                        FontSize = 10,
+                        Foreground = Brushes.Silver,
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    });
+                }
 
-                double pct1 = (z1.Width / (double)totalW) * 100.0;
-                double pct2 = (z2.Width / (double)totalW) * 100.0;
-                TxtSliderRatioValue.Text = $" {z1.Width}px / {z2.Width}px ({pct1:0.#}% / {pct2:0.#}%)";
+                var zoneTile = new Border
+                {
+                    Width = zw,
+                    Height = zh,
+                    Background = isSelected ? selectedBg : normalBg,
+                    BorderBrush = isSelected ? selectedBorder : normalBorder,
+                    BorderThickness = new Thickness(isSelected ? 2 : 1),
+                    CornerRadius = new CornerRadius(3),
+                    Cursor = Cursors.Hand,
+                    Tag = zone.Id,
+                    Child = labelStack
+                };
 
-                ColVisualZone1.Width = new GridLength(Math.Max(1, z1.Width), GridUnitType.Star);
-                ColVisualZone2.Width = new GridLength(Math.Max(1, z2.Width), GridUnitType.Star);
+                zoneTile.MouseLeftButtonDown += (s, e) =>
+                {
+                    if (s is Border b && b.Tag is int zId)
+                    {
+                        _selectedZoneId = zId;
+                        UpdateZoneVisualDisplay();
+                        e.Handled = true;
+                    }
+                };
 
-                TxtVisualZone1Size.Text = $"{z1.Width} × {z1.Height} px";
-                TxtVisualZone2Size.Text = $"{z2.Width} × {z2.Height} px";
+                Canvas.SetLeft(zoneTile, zx);
+                Canvas.SetTop(zoneTile, zy);
+                CanvasZoneEditor.Children.Add(zoneTile);
             }
+
+            if (_workingPreset.SplitRoot != null)
+            {
+                var dividers = _workingPreset.SplitRoot.GetDividers(monW, monH, _workingPreset.ZoneGap, minLeafPx: 80);
+                var dividerIdleBrush = (Brush)new BrushConverter().ConvertFromString("#40FFFFFF")!;
+                var dividerHoverBrush = (Brush)new BrushConverter().ConvertFromString("#CC4CC2FF")!;
+
+                foreach (var div in dividers)
+                {
+                    var handle = new Border
+                    {
+                        Background = Brushes.Transparent,
+                        Tag = div,
+                        Cursor = div.Orientation == SplitOrientation.Vertical ? Cursors.SizeWE : Cursors.SizeNS
+                    };
+
+                    var lineVisual = new Border
+                    {
+                        Background = dividerIdleBrush,
+                        CornerRadius = new CornerRadius(1)
+                    };
+
+                    if (div.Orientation == SplitOrientation.Vertical)
+                    {
+                        handle.Width = 10;
+                        handle.Height = Math.Max(12, (div.SpanEnd - div.SpanStart) * _previewScale);
+                        lineVisual.Width = 2;
+                        lineVisual.HorizontalAlignment = HorizontalAlignment.Center;
+                        Canvas.SetLeft(handle, div.LinePos * _previewScale - 5);
+                        Canvas.SetTop(handle, div.SpanStart * _previewScale);
+                    }
+                    else
+                    {
+                        handle.Width = Math.Max(12, (div.SpanEnd - div.SpanStart) * _previewScale);
+                        handle.Height = 10;
+                        lineVisual.Height = 2;
+                        lineVisual.VerticalAlignment = VerticalAlignment.Center;
+                        Canvas.SetLeft(handle, div.SpanStart * _previewScale);
+                        Canvas.SetTop(handle, div.LinePos * _previewScale - 5);
+                    }
+
+                    handle.Child = lineVisual;
+                    handle.MouseEnter += (_, _) => lineVisual.Background = dividerHoverBrush;
+                    handle.MouseLeave += (_, _) => lineVisual.Background = dividerIdleBrush;
+                    handle.MouseLeftButtonDown += (s, e) =>
+                    {
+                        if (s is Border b && b.Tag is SplitDividerInfo info)
+                        {
+                            _draggingDivider = info;
+                            _dragStartPoint = e.GetPosition(CanvasZoneEditor);
+                            _dragStartLinePos = info.LinePos;
+                            CanvasZoneEditor.CaptureMouse();
+                            e.Handled = true;
+                        }
+                    };
+
+                    Canvas.SetZIndex(handle, 10);
+                    CanvasZoneEditor.Children.Add(handle);
+                }
+            }
+        }
+
+        private void CanvasZoneEditor_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_draggingDivider == null || _workingPreset == null || e.LeftButton != MouseButtonState.Pressed)
+                return;
+
+            var curPt = e.GetPosition(CanvasZoneEditor);
+            double scale = Math.Max(0.01, _previewScale);
+
+            int deltaPx = _draggingDivider.Orientation == SplitOrientation.Vertical
+                ? (int)Math.Round((curPt.X - _dragStartPoint.X) / scale)
+                : (int)Math.Round((curPt.Y - _dragStartPoint.Y) / scale);
+
+            int avail = _draggingDivider.ParentSize - _draggingDivider.Gap;
+            if (avail <= 0) return;
+
+            int minPos = _draggingDivider.ParentStart + _draggingDivider.MinFirstSize + _draggingDivider.Gap / 2;
+            int maxPos = _draggingDivider.ParentStart + avail - _draggingDivider.MinSecondSize + _draggingDivider.Gap / 2;
+            int newLinePos = minPos <= maxPos
+                ? Math.Clamp(_dragStartLinePos + deltaPx, minPos, maxPos)
+                : _draggingDivider.ParentStart + avail / 2;
+
+            int newFirstSize = newLinePos - _draggingDivider.ParentStart - _draggingDivider.Gap / 2;
+            _draggingDivider.Node.SplitRatio = Math.Clamp(newFirstSize / (double)avail, 0.02, 0.98);
+
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+
+            RenderZoneCanvas();
+            PopulateSelectedZoneInspector();
+        }
+
+        private void CanvasZoneEditor_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_draggingDivider != null)
+            {
+                _draggingDivider = null;
+                if (CanvasZoneEditor.IsMouseCaptured)
+                    CanvasZoneEditor.ReleaseMouseCapture();
+            }
+        }
+
+        private void CanvasZoneEditor_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            _draggingDivider = null;
+        }
+
+        private void ZonePreviewHost_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            _previewHostWidth = Math.Max(120, e.NewSize.Width - 24);
+            _previewHostHeight = Math.Max(80, e.NewSize.Height - 24);
+            if (!_isUpdatingUi)
+            {
+                RenderZoneCanvas();
+            }
+        }
+
+        private void PopulateSelectedZoneInspector()
+        {
+            if (_workingPreset == null) return;
+            var zone = _workingPreset.Zones.FirstOrDefault(z => z.Id == _selectedZoneId) ?? _workingPreset.Zones.FirstOrDefault();
+            if (zone == null) return;
+
+            bool wasUpdating = _isUpdatingUi;
+            _isUpdatingUi = true;
+
+            if (_usePercentUnit)
+            {
+                LblCoordX.Text = LocalizationManager.GetString("Str_CoordPctX");
+                LblCoordY.Text = LocalizationManager.GetString("Str_CoordPctY");
+                LblCoordW.Text = LocalizationManager.GetString("Str_CoordPctWidth");
+                LblCoordH.Text = LocalizationManager.GetString("Str_CoordPctHeight");
+
+                TxtZoneX.Text = zone.PercentX.ToString("0.##", CultureInfo.InvariantCulture);
+                TxtZoneY.Text = zone.PercentY.ToString("0.##", CultureInfo.InvariantCulture);
+                TxtZoneW.Text = zone.PercentWidth.ToString("0.##", CultureInfo.InvariantCulture);
+                TxtZoneH.Text = zone.PercentHeight.ToString("0.##", CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                LblCoordX.Text = LocalizationManager.GetString("Str_CoordX");
+                LblCoordY.Text = LocalizationManager.GetString("Str_CoordY");
+                LblCoordW.Text = LocalizationManager.GetString("Str_CoordWidth");
+                LblCoordH.Text = LocalizationManager.GetString("Str_CoordHeight");
+
+                TxtZoneX.Text = zone.X.ToString(CultureInfo.InvariantCulture);
+                TxtZoneY.Text = zone.Y.ToString(CultureInfo.InvariantCulture);
+                TxtZoneW.Text = zone.Width.ToString(CultureInfo.InvariantCulture);
+                TxtZoneH.Text = zone.Height.ToString(CultureInfo.InvariantCulture);
+            }
+
+            _isUpdatingUi = wasUpdating;
         }
 
         private void CmbPresets_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -473,116 +779,162 @@ namespace WindowsSplitter.UI
                 var config = _settings.GetOrCreateMonitorConfig(_currentSelectedMonitor.DeviceName, _currentSelectedMonitor.Width, _currentSelectedMonitor.Height);
                 config.SelectedPresetId = preset.Id;
                 _settings.Save();
+                _selectedZoneId = 1;
+                SyncWorkingPresetFromSelection();
                 UpdateZoneVisualDisplay();
             }
         }
 
-        private void SliderZoneSplit_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private void CmbSelectedZone_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isUpdatingUi || _settings == null) return;
-
-            var preset = GetCurrentMonitorActivePreset();
-            if (preset == null || preset.Zones.Count < 2) return;
-
-            int newZ1Width = (int)Math.Round(SliderZoneSplit.Value);
-            int totalWidth = _currentSelectedMonitor?.Width ?? (preset.Zones[0].Width + preset.Zones[1].Width);
-            if (totalWidth <= 0) totalWidth = preset.ScreenWidth;
-
-            int newZ2Width = Math.Max(50, totalWidth - newZ1Width);
-
-            // If it is a custom profile, update in-memory immediately.
-            // If it is a default preset, do NOT mutate default preset in-memory, just update UI preview!
-            if (!preset.IsDefault)
+            if (_isUpdatingUi || _workingPreset == null) return;
+            if (CmbSelectedZone.SelectedValue is int zoneId)
             {
-                preset.Zones[0].Width = newZ1Width;
-                preset.Zones[1].X = newZ1Width;
-                preset.Zones[1].Width = newZ2Width;
+                _selectedZoneId = zoneId;
+                RenderZoneCanvas();
+                PopulateSelectedZoneInspector();
             }
-
-            _isUpdatingUi = true;
-            TxtZone1W.Text = newZ1Width.ToString();
-            TxtZone2X.Text = newZ1Width.ToString();
-            TxtZone2W.Text = newZ2Width.ToString();
-
-            double pct1 = (newZ1Width / (double)totalWidth) * 100.0;
-            double pct2 = (newZ2Width / (double)totalWidth) * 100.0;
-            TxtSliderRatioValue.Text = $" {newZ1Width}px / {newZ2Width}px ({pct1:0.#}% / {pct2:0.#}%)";
-
-            ColVisualZone1.Width = new GridLength(newZ1Width, GridUnitType.Star);
-            ColVisualZone2.Width = new GridLength(newZ2Width, GridUnitType.Star);
-
-            TxtVisualZone1Size.Text = $"{newZ1Width} × {preset.Zones[0].Height} px";
-            TxtVisualZone2Size.Text = $"{newZ2Width} × {preset.Zones[1].Height} px";
-            _isUpdatingUi = false;
         }
 
-        private void ZoneInput_TextChanged(object sender, TextChangedEventArgs e)
+        private void UnitMode_Changed(object sender, RoutedEventArgs e)
         {
-            if (_isUpdatingUi || _settings == null) return;
+            if (_isUpdatingUi) return;
+            _usePercentUnit = RdoUnitPercent.IsChecked == true;
+            PopulateSelectedZoneInspector();
+        }
 
-            var preset = GetCurrentMonitorActivePreset();
-            if (preset == null || preset.Zones.Count < 2) return;
+        private void BtnSplitVertical_Click(object sender, RoutedEventArgs e)
+        {
+            SplitSelectedZone(SplitOrientation.Vertical);
+        }
 
-            if (int.TryParse(TxtZone1X.Text, out int z1x) &&
-                int.TryParse(TxtZone1Y.Text, out int z1y) &&
-                int.TryParse(TxtZone1W.Text, out int z1w) &&
-                int.TryParse(TxtZone1H.Text, out int z1h) &&
-                int.TryParse(TxtZone2X.Text, out int z2x) &&
-                int.TryParse(TxtZone2Y.Text, out int z2y) &&
-                int.TryParse(TxtZone2W.Text, out int z2w) &&
-                int.TryParse(TxtZone2H.Text, out int z2h))
+        private void BtnSplitHorizontal_Click(object sender, RoutedEventArgs e)
+        {
+            SplitSelectedZone(SplitOrientation.Horizontal);
+        }
+
+        private void SplitSelectedZone(SplitOrientation orientation)
+        {
+            if (_workingPreset?.SplitRoot == null) return;
+            var (monW, monH) = GetPreviewMonitorDimensions();
+
+            if (_workingPreset.SplitRoot.SplitLeaf(_selectedZoneId, orientation, 0.5))
             {
-                // Only mutate in-memory if custom profile!
-                if (!preset.IsDefault)
-                {
-                    preset.Zones[0].X = z1x;
-                    preset.Zones[0].Y = z1y;
-                    preset.Zones[0].Width = z1w;
-                    preset.Zones[0].Height = z1h;
-
-                    preset.Zones[1].X = z2x;
-                    preset.Zones[1].Y = z2y;
-                    preset.Zones[1].Width = z2w;
-                    preset.Zones[1].Height = z2h;
-                }
-
-                ColVisualZone1.Width = new GridLength(Math.Max(1, z1w), GridUnitType.Star);
-                ColVisualZone2.Width = new GridLength(Math.Max(1, z2w), GridUnitType.Star);
-
-                TxtVisualZone1Size.Text = $"{z1w} × {z1h} px";
-                TxtVisualZone2Size.Text = $"{z2w} × {z2h} px";
+                _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+                UpdateZoneVisualDisplay();
             }
+        }
+
+        private void BtnRemoveZone_Click(object sender, RoutedEventArgs e)
+        {
+            if (_workingPreset?.SplitRoot == null || _workingPreset.SplitRoot.CountLeaves() <= 1)
+                return;
+
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            if (_workingPreset.SplitRoot.RemoveLeaf(_selectedZoneId))
+            {
+                _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+                _selectedZoneId = Math.Clamp(_selectedZoneId, 1, _workingPreset.Zones.Count);
+                UpdateZoneVisualDisplay();
+            }
+        }
+
+        private void SliderZoneGap_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isUpdatingUi || _workingPreset == null) return;
+
+            int newGap = (int)Math.Round(SliderZoneGap.Value);
+            _workingPreset.ZoneGap = newGap;
+            TxtZoneGapValue.Text = $"{newGap} px";
+
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+            RenderZoneCanvas();
+            PopulateSelectedZoneInspector();
+        }
+
+        private void ZoneInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                ApplyZoneBoundsFromInputs();
+                e.Handled = true;
+            }
+        }
+
+        private void BtnApplyZoneBounds_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyZoneBoundsFromInputs();
+        }
+
+        private static bool TryParseFlexibleDouble(string? text, out double value)
+        {
+            string normalized = (text ?? string.Empty).Trim().Replace(',', '.');
+            return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        }
+
+        private void ApplyZoneBoundsFromInputs()
+        {
+            if (_workingPreset?.SplitRoot == null) return;
+            if (!TryParseFlexibleDouble(TxtZoneX.Text, out double rawX) ||
+                !TryParseFlexibleDouble(TxtZoneY.Text, out double rawY) ||
+                !TryParseFlexibleDouble(TxtZoneW.Text, out double rawW) ||
+                !TryParseFlexibleDouble(TxtZoneH.Text, out double rawH))
+            {
+                return;
+            }
+
+            var (monW, monH) = GetPreviewMonitorDimensions();
+
+            int pxX, pxY, pxW, pxH;
+            if (_usePercentUnit)
+            {
+                pxX = (int)Math.Round((Math.Clamp(rawX, 0, 100) / 100.0) * monW);
+                pxY = (int)Math.Round((Math.Clamp(rawY, 0, 100) / 100.0) * monH);
+                pxW = (int)Math.Round((Math.Clamp(rawW, 1, 100) / 100.0) * monW);
+                pxH = (int)Math.Round((Math.Clamp(rawH, 1, 100) / 100.0) * monH);
+            }
+            else
+            {
+                pxX = (int)Math.Round(rawX);
+                pxY = (int)Math.Round(rawY);
+                pxW = (int)Math.Round(rawW);
+                pxH = (int)Math.Round(rawH);
+            }
+
+            _workingPreset.SplitRoot.TryApplyZoneBounds(
+                _selectedZoneId,
+                pxX, pxY, pxW, pxH,
+                monW, monH,
+                _workingPreset.ZoneGap,
+                minLeafPx: 80);
+
+            _workingPreset.EnsureSplitTreeAndSync(monW, monH);
+            RenderZoneCanvas();
+            PopulateSelectedZoneInspector();
         }
 
         private void BtnSaveAsNewProfile_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentSelectedMonitor == null || _settings == null) return;
+            if (_currentSelectedMonitor == null || _settings == null || _workingPreset == null) return;
 
             var config = _settings.GetOrCreateMonitorConfig(_currentSelectedMonitor.DeviceName, _currentSelectedMonitor.Width, _currentSelectedMonitor.Height);
             var activePreset = GetCurrentMonitorActivePreset();
-
-            // Read current values from textboxes
-            int z1x = int.TryParse(TxtZone1X.Text, out int parsedZ1X) ? parsedZ1X : 0;
-            int z1y = int.TryParse(TxtZone1Y.Text, out int parsedZ1Y) ? parsedZ1Y : 0;
-            int z1w = int.TryParse(TxtZone1W.Text, out int parsedZ1W) ? parsedZ1W : (int)(config.ScreenWidth / 3.0);
-            int z1h = int.TryParse(TxtZone1H.Text, out int parsedZ1H) ? parsedZ1H : config.ScreenHeight;
-
-            int z2x = int.TryParse(TxtZone2X.Text, out int parsedZ2X) ? parsedZ2X : z1w;
-            int z2y = int.TryParse(TxtZone2Y.Text, out int parsedZ2Y) ? parsedZ2Y : 0;
-            int z2w = int.TryParse(TxtZone2W.Text, out int parsedZ2W) ? parsedZ2W : (config.ScreenWidth - z1w);
-            int z2h = int.TryParse(TxtZone2H.Text, out int parsedZ2H) ? parsedZ2H : config.ScreenHeight;
-
-            var zones = new List<Zone>
-            {
-                new Zone(1, "Vùng 1 (Trái)", z1x, z1y, z1w, z1h),
-                new Zone(2, "Vùng 2 (Phải)", z2x, z2y, z2w, z2h)
-            };
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            _workingPreset.EnsureSplitTreeAndSync(monW, monH);
 
             string defaultName = activePreset != null && !activePreset.IsDefault
                 ? $"{activePreset.Name} (Copy)"
-                : $"Profile {z1w}x{z2w}";
+                : $"Profile {_workingPreset.Zones.Count}-Zone";
 
-            var dlg = new SaveProfileDialog(defaultName, config.ScreenWidth, config.ScreenHeight, zones, _currentSelectedMonitor.FriendlyName)
+            var dlg = new SaveProfileDialog(
+                defaultName,
+                monW,
+                monH,
+                _workingPreset.Zones,
+                _currentSelectedMonitor.FriendlyName,
+                _workingPreset.SplitRoot,
+                _workingPreset.ZoneGap)
             {
                 Owner = this
             };
@@ -594,6 +946,7 @@ namespace WindowsSplitter.UI
                 _settings.Save();
 
                 RefreshPresetsForCurrentMonitor(dlg.ResultPreset.Id);
+                SyncWorkingPresetFromSelection();
                 UpdateZoneVisualDisplay();
 
                 string msg = LocalizationManager.GetString("Msg_ProfileSaveSuccess", dlg.ResultPreset.Name);
@@ -604,48 +957,28 @@ namespace WindowsSplitter.UI
 
         private void BtnSaveZoneSettings_Click(object sender, RoutedEventArgs e)
         {
-            if (_settings == null || _currentSelectedMonitor == null) return;
+            if (_settings == null || _currentSelectedMonitor == null || _workingPreset == null) return;
             var preset = GetCurrentMonitorActivePreset();
             if (preset == null) return;
 
             if (preset.IsDefault)
             {
-                // Cannot overwrite default preset! Redirect to Save as new profile
                 BtnSaveAsNewProfile_Click(sender, e);
                 return;
             }
 
-            // Save changes to custom profile
-            if (int.TryParse(TxtZone1X.Text, out int z1x) &&
-                int.TryParse(TxtZone1Y.Text, out int z1y) &&
-                int.TryParse(TxtZone1W.Text, out int z1w) &&
-                int.TryParse(TxtZone1H.Text, out int z1h) &&
-                int.TryParse(TxtZone2X.Text, out int z2x) &&
-                int.TryParse(TxtZone2Y.Text, out int z2y) &&
-                int.TryParse(TxtZone2W.Text, out int z2w) &&
-                int.TryParse(TxtZone2H.Text, out int z2h))
-            {
-                if (preset.Zones.Count >= 2)
-                {
-                    preset.Zones[0].X = z1x;
-                    preset.Zones[0].Y = z1y;
-                    preset.Zones[0].Width = z1w;
-                    preset.Zones[0].Height = z1h;
+            ApplyZoneBoundsFromInputs();
+            var (monW, monH) = GetPreviewMonitorDimensions();
+            preset.EnsureSplitTreeAndSync(monW, monH);
 
-                    preset.Zones[1].X = z2x;
-                    preset.Zones[1].Y = z2y;
-                    preset.Zones[1].Width = z2w;
-                    preset.Zones[1].Height = z2h;
-                }
+            _settings.Save();
+            RefreshPresetsForCurrentMonitor(preset.Id);
+            SyncWorkingPresetFromSelection();
+            UpdateZoneVisualDisplay();
 
-                _settings.Save();
-                RefreshPresetsForCurrentMonitor(preset.Id);
-                UpdateZoneVisualDisplay();
-
-                string msg = LocalizationManager.GetString("Msg_ProfileUpdateSuccess", preset.Name);
-                string title = LocalizationManager.GetString("Msg_Notice");
-                MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
-            }
+            string msg = LocalizationManager.GetString("Msg_ProfileUpdateSuccess", preset.Name);
+            string title = LocalizationManager.GetString("Msg_Notice");
+            MessageBox.Show(this, msg, title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void BtnDeleteProfile_Click(object sender, RoutedEventArgs e)
@@ -673,6 +1006,7 @@ namespace WindowsSplitter.UI
                 _settings.Save();
 
                 RefreshPresetsForCurrentMonitor(fallback?.Id);
+                SyncWorkingPresetFromSelection();
                 UpdateZoneVisualDisplay();
 
                 MessageBox.Show(this, LocalizationManager.GetString("Msg_ProfileDeleteSuccess", preset.Name), LocalizationManager.GetString("Msg_Notice"), MessageBoxButton.OK, MessageBoxImage.Information);
@@ -697,6 +1031,8 @@ namespace WindowsSplitter.UI
         {
             MonitorManager.Instance.RefreshMonitors();
             RefreshMonitorSelector();
+            RefreshPresetsForCurrentMonitor();
+            SyncWorkingPresetFromSelection();
             UpdateZoneVisualDisplay();
 
             int count = MonitorManager.Instance.Monitors.Count;
@@ -718,6 +1054,7 @@ namespace WindowsSplitter.UI
             _settings.DwmInvisibleBorderCompensation = ChkInvisibleBorderComp.IsChecked ?? true;
             _settings.DisableWin11RoundedCorners = ChkDisableRoundedCorners.IsChecked ?? true;
             _settings.ShowZoneOverlayOnSnap = ChkShowZoneOverlay.IsChecked ?? true;
+            _settings.PreventAccidentalTopEdgeMaximize = ChkPreventTopEdgeMaximize.IsChecked ?? true;
             _settings.StartMinimizedToTray = ChkStartMinimized.IsChecked ?? false;
             _settings.CloseToTray = ChkCloseToTray.IsChecked ?? false;
 
@@ -836,7 +1173,9 @@ namespace WindowsSplitter.UI
             _settings.OverrideWindowsSnap = ChkOverrideSnap.IsChecked == true;
             ChkOverrideSnap.IsChecked = _settings.OverrideWindowsSnap;
             _keyboardHook.OverrideWindowsSnap = _settings.OverrideWindowsSnap;
-            TxtHookStatus.Text = _settings.OverrideWindowsSnap ? "⚡ Win+Arrow: BẬT" : "⚪ Win+Arrow: TẮT";
+            TxtHookStatus.Text = _settings.OverrideWindowsSnap
+                ? LocalizationManager.GetString("Str_BadgeHookEnabled")
+                : LocalizationManager.GetString("Str_BadgeHookDisabled");
             _settings.Save();
         }
 
@@ -886,6 +1225,7 @@ namespace WindowsSplitter.UI
             // Cleanup: unhook and restore all borderless windows to standard state
             _keyboardHook.Dispose();
             _winEventHookService.Dispose();
+            _topEdgeSnapGuard.Dispose();
             _borderlessEngine.CleanUp();
             _settings?.Save();
 

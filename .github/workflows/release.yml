@@ -1,0 +1,96 @@
+name: Release Windows Splitter
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.1.0 without v prefix)'
+        required: true
+        default: '1.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release version and tag
+        id: meta
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $ver = "${{ github.event.inputs.version }}".TrimStart('v')
+            $tag = "v$ver"
+          } else {
+            $tag = "${{ github.ref_name }}"
+            $ver = $tag.TrimStart('v')
+          }
+          "version=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained win-x64
+        run: dotnet publish WindowsSplitter.csproj -c Release -r win-x64 --self-contained true -p:Version=${{ steps.meta.outputs.version }} -o publish/win-x64
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+          }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Compile Inno Setup installer (unsigned)
+        run: '& "$env:ISCC" "/DMyAppVersion=${{ steps.meta.outputs.version }}" "installer\WindowsSplitter.iss"'
+        shell: pwsh
+
+      - name: Create portable zip & SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release_assets | Out-Null
+          $ver = "${{ steps.meta.outputs.version }}"
+          $setupExe = "installer/output/WindowsSplitter-Setup-$ver-x64.exe"
+          $portableZip = "release_assets/WindowsSplitter-Portable-$ver-win-x64.zip"
+
+          Copy-Item $setupExe release_assets/
+          Copy-Item LICENSE publish/win-x64/
+          Copy-Item THIRD-PARTY-NOTICES.txt publish/win-x64/
+          Compress-Archive -Path "publish/win-x64/*" -DestinationPath $portableZip -Force
+
+          Get-ChildItem release_assets | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Out-File -Encoding ascii -FilePath release_assets/SHA256SUMS.txt
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $notes = @"
+          Unsigned open-source release (MIT License).
+          Verify downloads against SHA256SUMS.txt. If Windows SmartScreen displays a warning for the unsigned binary, select "More info" -> "Run anyway", or build directly from source.
+
+          See CHANGELOG.md for full release notes.
+          "@
+          $notes | Out-File -Encoding utf8 -FilePath release_notes.md
+          $exists = gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag release_assets/* --clobber
+          } else {
+            gh release create $tag release_assets/* --title "Windows Splitter $tag" --notes-file release_notes.md
+          }

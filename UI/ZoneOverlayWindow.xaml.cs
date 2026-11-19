@@ -29,8 +29,8 @@ namespace WindowsSplitter.UI
 
         public async void ShowForZone(Zone zone, NativeMethods.RECT rect, int durationMs = 500)
         {
-            TxtZoneName.Text = zone.Name;
-            TxtZoneDimensions.Text = $"{rect.Width} × {rect.Height} px";
+            TxtZoneName.Text = zone.LocalizedName;
+            TxtZoneDimensions.Text = $"{rect.Width} x {rect.Height} px";
 
             this.Show();
 

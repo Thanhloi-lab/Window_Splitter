@@ -16,47 +16,95 @@ namespace WindowsSplitter.Core
             _settings = settings;
         }
 
+        public List<Zone> ResolveZonesForMonitor(ZonePreset preset, MonitorInfoItem monitor)
+        {
+            int workW = monitor.WorkArea.Width > 0 ? monitor.WorkArea.Width : monitor.Width;
+            int workH = monitor.WorkArea.Height > 0 ? monitor.WorkArea.Height : monitor.Height;
+
+            if (preset.SplitRoot != null)
+            {
+                return preset.SplitRoot.ComputeZones(workW, workH, preset.ZoneGap);
+            }
+
+            double scaleX = preset.ScreenWidth > 0 ? workW / (double)preset.ScreenWidth : 1.0;
+            double scaleY = preset.ScreenHeight > 0 ? workH / (double)preset.ScreenHeight : 1.0;
+
+            return preset.Zones.Select(z => new Zone(
+                z.Id,
+                z.Name,
+                (int)Math.Round(z.X * scaleX),
+                (int)Math.Round(z.Y * scaleY),
+                (int)Math.Round(z.Width * scaleX),
+                (int)Math.Round(z.Height * scaleY))
+            {
+                PercentX = z.PercentX,
+                PercentY = z.PercentY,
+                PercentWidth = z.PercentWidth,
+                PercentHeight = z.PercentHeight
+            }).ToList();
+        }
+
+        public bool IsWindowSnappedAtTopEdge(IntPtr hWnd, MonitorInfoItem monitor)
+        {
+            if (hWnd == IntPtr.Zero || !_windowCurrentZoneMap.TryGetValue(hWnd, out int zoneId))
+                return false;
+
+            var preset = _settings.GetPresetForMonitor(monitor);
+            if (preset == null) return false;
+
+            var zones = ResolveZonesForMonitor(preset, monitor);
+            var zone = zones.FirstOrDefault(z => z.Id == zoneId);
+            return zone != null && zone.Y <= 4;
+        }
+
         public Zone? GetWindowCurrentZone(IntPtr hWnd)
         {
             if (hWnd == IntPtr.Zero) return null;
 
             var currentMonitor = MonitorManager.Instance.GetMonitorForWindow(hWnd);
             var preset = _settings.GetPresetForMonitor(currentMonitor);
-            if (preset == null || preset.Zones.Count == 0) return null;
+            if (preset == null) return null;
+
+            var zones = ResolveZonesForMonitor(preset, currentMonitor);
+            if (zones.Count == 0) return null;
 
             if (_windowCurrentZoneMap.TryGetValue(hWnd, out int zoneId))
             {
-                var found = preset.Zones.FirstOrDefault(z => z.Id == zoneId);
+                var found = zones.FirstOrDefault(z => z.Id == zoneId);
                 if (found != null) return found;
             }
 
-            // Detect by screen coordinates
-            if (NativeMethods.GetWindowRect(hWnd, out var winRect))
+            // Detect by 2D screen intersection area against WorkArea
+            NativeMethods.RECT winRect;
+            int hr = NativeMethods.DwmGetWindowAttribute(hWnd, NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS, out winRect, Marshal.SizeOf<NativeMethods.RECT>());
+            if (hr != 0 && !NativeMethods.GetWindowRect(hWnd, out winRect))
+                return null;
+
+            int relX = winRect.Left - currentMonitor.WorkArea.Left;
+            int relY = winRect.Top - currentMonitor.WorkArea.Top;
+            int relW = winRect.Width;
+            int relH = winRect.Height;
+
+            Zone? bestZone = null;
+            long maxArea = 0;
+
+            foreach (var z in zones)
             {
-                int relX = winRect.Left - currentMonitor.Bounds.Left;
-                int relW = winRect.Width;
+                int overlapX = Math.Max(0, Math.Min(relX + relW, z.Right) - Math.Max(relX, z.X));
+                int overlapY = Math.Max(0, Math.Min(relY + relH, z.Bottom) - Math.Max(relY, z.Y));
+                long area = (long)overlapX * overlapY;
 
-                Zone? bestZone = null;
-                int maxOverlap = 0;
-
-                foreach (var z in preset.Zones)
+                if (area > maxArea)
                 {
-                    int overlapLeft = Math.Max(relX, z.X);
-                    int overlapRight = Math.Min(relX + relW, z.X + z.Width);
-                    int overlap = Math.Max(0, overlapRight - overlapLeft);
-
-                    if (overlap > maxOverlap)
-                    {
-                        maxOverlap = overlap;
-                        bestZone = z;
-                    }
+                    maxArea = area;
+                    bestZone = z;
                 }
+            }
 
-                if (bestZone != null && maxOverlap > 100)
-                {
-                    _windowCurrentZoneMap[hWnd] = bestZone.Id;
-                    return bestZone;
-                }
+            if (bestZone != null && maxArea > 10000)
+            {
+                _windowCurrentZoneMap[hWnd] = bestZone.Id;
+                return bestZone;
             }
 
             return null;
@@ -75,7 +123,6 @@ namespace WindowsSplitter.Core
             if (hWnd == IntPtr.Zero || !NativeMethods.IsWindowVisible(hWnd))
                 return false;
 
-            // Don't snap special system windows (desktop, shell, taskbar)
             if (hWnd == NativeMethods.GetDesktopWindow() || hWnd == NativeMethods.GetShellWindow())
                 return false;
 
@@ -83,36 +130,31 @@ namespace WindowsSplitter.Core
             if (className.Contains("Shell_TrayWnd") || className.Contains("Progman") || className.Contains("WorkerW"))
                 return false;
 
-            // Handle KeyDirection.Down: Minimize window or restore original position
-            if (direction == KeyDirection.Down)
+            var currentMonitor = MonitorManager.Instance.GetMonitorForWindow(hWnd);
+            var preset = _settings.GetPresetForMonitor(currentMonitor);
+            if (preset == null) return false;
+
+            var zones = ResolveZonesForMonitor(preset, currentMonitor);
+            if (zones.Count == 0) return false;
+
+            // If currently maximized
+            if (NativeMethods.IsZoomed(hWnd))
             {
-                if (NativeMethods.IsZoomed(hWnd))
+                if (direction == KeyDirection.Down || direction == KeyDirection.Up)
                 {
                     NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
+                    if (direction == KeyDirection.Down && _windowCurrentZoneMap.TryGetValue(hWnd, out int prevZoneId))
+                    {
+                        var prevZone = zones.FirstOrDefault(z => z.Id == prevZoneId);
+                        if (prevZone != null)
+                        {
+                            ApplyWindowToZone(hWnd, prevZone, currentMonitor);
+                        }
+                    }
                     return true;
                 }
 
-                NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE);
-                return true;
-            }
-
-            // Handle KeyDirection.Up: Maximize window to fill monitor, or restore
-            if (direction == KeyDirection.Up)
-            {
-                if (NativeMethods.IsZoomed(hWnd))
-                {
-                    NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
-                }
-                else
-                {
-                    NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MAXIMIZE);
-                }
-                return true;
-            }
-
-            // Restore if maximized before moving to a zone
-            if (NativeMethods.IsZoomed(hWnd))
-            {
+                // Left / Right from maximized: restore and snap into leftmost/rightmost or neighbor zone
                 NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
             }
 
@@ -125,82 +167,181 @@ namespace WindowsSplitter.Core
                 }
             }
 
-            // Identify current monitor and preset tailored for this monitor
-            var currentMonitor = MonitorManager.Instance.GetMonitorForWindow(hWnd);
-            var preset = _settings.GetPresetForMonitor(currentMonitor);
-            if (preset == null || preset.Zones.Count == 0)
-                return false;
-
-            int targetZoneIndex = 0;
-            if (_windowCurrentZoneMap.TryGetValue(hWnd, out int currentZoneId))
+            // Check if window already has a tracked zone
+            Zone? currentZone = null;
+            if (_windowCurrentZoneMap.TryGetValue(hWnd, out int mappedZoneId))
             {
-                int curIdx = preset.Zones.FindIndex(z => z.Id == currentZoneId);
-                if (curIdx >= 0)
+                currentZone = zones.FirstOrDefault(z => z.Id == mappedZoneId);
+            }
+
+            // Unsnapped / floating window
+            if (currentZone == null)
+            {
+                if (direction == KeyDirection.Up)
                 {
-                    if (direction == KeyDirection.Left)
+                    NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MAXIMIZE);
+                    return true;
+                }
+
+                if (direction == KeyDirection.Down)
+                {
+                    NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE);
+                    return true;
+                }
+
+                Zone firstZone = direction == KeyDirection.Left
+                    ? zones.OrderBy(z => z.X).ThenBy(z => z.Y).First()
+                    : zones.OrderByDescending(z => z.Right).ThenBy(z => z.Y).First();
+
+                _windowCurrentZoneMap[hWnd] = firstZone.Id;
+                ApplyWindowToZone(hWnd, firstZone, currentMonitor);
+                return true;
+            }
+
+            // Window is already in a zone: 2D Spatial Navigation
+            Zone? neighbor = FindNeighborZone(zones, currentZone, direction);
+            if (neighbor != null)
+            {
+                _windowCurrentZoneMap[hWnd] = neighbor.Id;
+                ApplyWindowToZone(hWnd, neighbor, currentMonitor);
+                return true;
+            }
+
+            // Reached layout edge along pressed direction
+            if (direction == KeyDirection.Up)
+            {
+                // Keep _windowCurrentZoneMap[hWnd] so Win+Down restores back into this top zone
+                NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MAXIMIZE);
+                return true;
+            }
+
+            if (direction == KeyDirection.Down)
+            {
+                NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE);
+                return true;
+            }
+
+            // Left / Right edge: try wrapping across adjacent monitor if enabled
+            if (_settings.EnableCrossMonitorWrap && MonitorManager.Instance.Monitors.Count > 1)
+            {
+                var nextMon = MonitorManager.Instance.GetNextMonitor(currentMonitor, direction);
+                if (nextMon.DeviceName != currentMonitor.DeviceName)
+                {
+                    var nextPreset = _settings.GetPresetForMonitor(nextMon);
+                    var nextZones = ResolveZonesForMonitor(nextPreset, nextMon);
+                    if (nextZones.Count > 0)
                     {
-                        if (curIdx == 0 && _settings.EnableCrossMonitorWrap && MonitorManager.Instance.Monitors.Count > 1)
-                        {
-                            // Wrap to the monitor to the left
-                            var nextMon = MonitorManager.Instance.GetNextMonitor(currentMonitor, KeyDirection.Left);
-                            if (nextMon.DeviceName != currentMonitor.DeviceName)
-                            {
-                                currentMonitor = nextMon;
-                                preset = _settings.GetPresetForMonitor(currentMonitor);
-                                targetZoneIndex = Math.Max(0, preset.Zones.Count - 1);
-                            }
-                            else
-                            {
-                                targetZoneIndex = 0;
-                            }
-                        }
-                        else
-                        {
-                            targetZoneIndex = Math.Max(0, curIdx - 1);
-                        }
-                    }
-                    else if (direction == KeyDirection.Right)
-                    {
-                        if (curIdx == preset.Zones.Count - 1 && _settings.EnableCrossMonitorWrap && MonitorManager.Instance.Monitors.Count > 1)
-                        {
-                            // Wrap to the monitor to the right
-                            var nextMon = MonitorManager.Instance.GetNextMonitor(currentMonitor, KeyDirection.Right);
-                            if (nextMon.DeviceName != currentMonitor.DeviceName)
-                            {
-                                currentMonitor = nextMon;
-                                preset = _settings.GetPresetForMonitor(currentMonitor);
-                                targetZoneIndex = 0;
-                            }
-                            else
-                            {
-                                targetZoneIndex = preset.Zones.Count - 1;
-                            }
-                        }
-                        else
-                        {
-                            targetZoneIndex = Math.Min(preset.Zones.Count - 1, curIdx + 1);
-                        }
+                        double relCenterY = currentMonitor.WorkArea.Height > 0
+                            ? currentZone.CenterY / currentMonitor.WorkArea.Height
+                            : 0.5;
+
+                        Zone targetZone = SelectEdgeZoneOnMonitor(nextZones, nextMon, direction, relCenterY);
+                        _windowCurrentZoneMap[hWnd] = targetZone.Id;
+                        ApplyWindowToZone(hWnd, targetZone, nextMon);
+                        return true;
                     }
                 }
+            }
+
+            // Even if at boundary with no wrap, ensure window stays snapped cleanly to currentZone
+            ApplyWindowToZone(hWnd, currentZone, currentMonitor);
+            return true;
+        }
+
+        private static Zone SelectEdgeZoneOnMonitor(List<Zone> zones, MonitorInfoItem monitor, KeyDirection moveDirection, double targetRelCenterY)
+        {
+            double targetY = targetRelCenterY * Math.Max(1, monitor.WorkArea.Height);
+            if (moveDirection == KeyDirection.Right)
+            {
+                int minX = zones.Min(z => z.X);
+                return zones
+                    .Where(z => z.X <= minX + 12)
+                    .OrderBy(z => Math.Abs(z.CenterY - targetY))
+                    .First();
             }
             else
             {
-                // First time on this monitor
-                if (direction == KeyDirection.Left)
+                int maxRight = zones.Max(z => z.Right);
+                return zones
+                    .Where(z => z.Right >= maxRight - 12)
+                    .OrderBy(z => Math.Abs(z.CenterY - targetY))
+                    .First();
+            }
+        }
+
+        public static Zone? FindNeighborZone(List<Zone> zones, Zone current, KeyDirection direction)
+        {
+            const int touchTolerance = 12;
+            var candidates = new List<(Zone Zone, int EdgeGap, double OrthoDist, int OrthoOverlap)>();
+
+            foreach (var z in zones)
+            {
+                if (z.Id == current.Id) continue;
+
+                switch (direction)
                 {
-                    targetZoneIndex = 0;
-                }
-                else if (direction == KeyDirection.Right)
-                {
-                    targetZoneIndex = Math.Min(1, preset.Zones.Count - 1);
+                    case KeyDirection.Right:
+                        if (z.X >= current.Right - touchTolerance && z.CenterX > current.CenterX + 1)
+                        {
+                            int overlapY = Math.Min(current.Bottom, z.Bottom) - Math.Max(current.Y, z.Y);
+                            if (overlapY > 4)
+                            {
+                                int gap = Math.Max(0, z.X - current.Right);
+                                double orthoDist = Math.Abs(z.CenterY - current.CenterY);
+                                candidates.Add((z, gap, orthoDist, overlapY));
+                            }
+                        }
+                        break;
+
+                    case KeyDirection.Left:
+                        if (z.Right <= current.X + touchTolerance && z.CenterX < current.CenterX - 1)
+                        {
+                            int overlapY = Math.Min(current.Bottom, z.Bottom) - Math.Max(current.Y, z.Y);
+                            if (overlapY > 4)
+                            {
+                                int gap = Math.Max(0, current.X - z.Right);
+                                double orthoDist = Math.Abs(z.CenterY - current.CenterY);
+                                candidates.Add((z, gap, orthoDist, overlapY));
+                            }
+                        }
+                        break;
+
+                    case KeyDirection.Down:
+                        if (z.Y >= current.Bottom - touchTolerance && z.CenterY > current.CenterY + 1)
+                        {
+                            int overlapX = Math.Min(current.Right, z.Right) - Math.Max(current.X, z.X);
+                            if (overlapX > 4)
+                            {
+                                int gap = Math.Max(0, z.Y - current.Bottom);
+                                double orthoDist = Math.Abs(z.CenterX - current.CenterX);
+                                candidates.Add((z, gap, orthoDist, overlapX));
+                            }
+                        }
+                        break;
+
+                    case KeyDirection.Up:
+                        if (z.Bottom <= current.Y + touchTolerance && z.CenterY < current.CenterY - 1)
+                        {
+                            int overlapX = Math.Min(current.Right, z.Right) - Math.Max(current.X, z.X);
+                            if (overlapX > 4)
+                            {
+                                int gap = Math.Max(0, current.Y - z.Bottom);
+                                double orthoDist = Math.Abs(z.CenterX - current.CenterX);
+                                candidates.Add((z, gap, orthoDist, overlapX));
+                            }
+                        }
+                        break;
                 }
             }
 
-            var targetZone = preset.Zones[targetZoneIndex];
-            _windowCurrentZoneMap[hWnd] = targetZone.Id;
+            if (candidates.Count == 0)
+                return null;
 
-            ApplyWindowToZone(hWnd, targetZone, currentMonitor);
-            return true;
+            return candidates
+                .OrderBy(c => c.EdgeGap)
+                .ThenBy(c => c.OrthoDist)
+                .ThenByDescending(c => c.OrthoOverlap)
+                .First().Zone;
         }
 
         public bool MoveWindowToMonitor(IntPtr hWnd, KeyDirection direction)
@@ -221,23 +362,30 @@ namespace WindowsSplitter.Core
                 return false;
 
             var targetPreset = _settings.GetPresetForMonitor(targetMonitor);
-            if (targetPreset == null || targetPreset.Zones.Count == 0)
-                return false;
+            if (targetPreset == null) return false;
 
-            // Preserve current zone index or land on corresponding zone
+            var targetZones = ResolveZonesForMonitor(targetPreset, targetMonitor);
+            if (targetZones.Count == 0) return false;
+
             int targetZoneIndex = 0;
             if (_windowCurrentZoneMap.TryGetValue(hWnd, out int currentZoneId))
             {
                 var curPreset = _settings.GetPresetForMonitor(currentMonitor);
-                int curIdx = curPreset.Zones.FindIndex(z => z.Id == currentZoneId);
+                var curZones = ResolveZonesForMonitor(curPreset, currentMonitor);
+                int curIdx = curZones.FindIndex(z => z.Id == currentZoneId);
                 if (curIdx >= 0)
                 {
-                    targetZoneIndex = Math.Min(curIdx, targetPreset.Zones.Count - 1);
+                    targetZoneIndex = Math.Min(curIdx, targetZones.Count - 1);
                 }
             }
 
-            var targetZone = targetPreset.Zones[targetZoneIndex];
+            var targetZone = targetZones[targetZoneIndex];
             _windowCurrentZoneMap[hWnd] = targetZone.Id;
+
+            if (NativeMethods.IsZoomed(hWnd))
+            {
+                NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
+            }
 
             ApplyWindowToZone(hWnd, targetZone, targetMonitor);
             return true;
@@ -248,17 +396,11 @@ namespace WindowsSplitter.Core
             int monLeft = monitor.WorkArea.Left;
             int monTop = monitor.WorkArea.Top;
 
-            // Target visual rectangle
             int targetX = monLeft + targetZone.X;
             int targetY = monTop + targetZone.Y;
-            int targetWidth = targetZone.Width;
-            int targetHeight = Math.Min(targetZone.Height, monitor.WorkArea.Height);
+            int targetWidth = Math.Min(targetZone.Width, Math.Max(80, monitor.WorkArea.Width - targetZone.X));
+            int targetHeight = Math.Min(targetZone.Height, Math.Max(80, monitor.WorkArea.Height - targetZone.Y));
 
-            // Clamp if zone definition exceeds this monitor's work area
-            if (targetWidth > monitor.WorkArea.Width) targetWidth = monitor.WorkArea.Width;
-            if (targetHeight > monitor.WorkArea.Height) targetHeight = monitor.WorkArea.Height;
-
-            // Invisible Border Compensation
             int actualX = targetX;
             int actualY = targetY;
             int actualW = targetWidth;
@@ -267,8 +409,6 @@ namespace WindowsSplitter.Core
             long windowStyle = NativeMethods.GetWindowLongPtr(hWnd, NativeMethods.GWL_STYLE).ToInt64();
             bool hasDwmFrame = (windowStyle & (NativeMethods.WS_CAPTION | NativeMethods.WS_THICKFRAME | NativeMethods.WS_BORDER)) != 0;
 
-            // Borderless popup windows have no invisible DWM frame to compensate. Applying
-            // the fallback offset to them creates a visible gap around the snapped content.
             if (_settings.DwmInvisibleBorderCompensation && hasDwmFrame)
             {
                 int leftOffset = 0;
@@ -285,7 +425,6 @@ namespace WindowsSplitter.Core
                     bottomOffset = windowRect.Bottom - frameBounds.Bottom;
                 }
 
-                // If DWM values were 0 or negative, fall back to standard compensation
                 if (leftOffset <= 0 && rightOffset <= 0)
                 {
                     leftOffset = _settings.BorderCompensationPixels;
@@ -300,14 +439,13 @@ namespace WindowsSplitter.Core
                 actualH = targetHeight + topOffset + bottomOffset;
             }
 
-            // Disable Windows 11 rounded corners if configured
             if (_settings.DisableWin11RoundedCorners)
             {
                 int pref = (int)NativeMethods.DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_DONOTROUND;
                 NativeMethods.DwmSetWindowAttribute(hWnd, NativeMethods.DWMWA_WINDOW_CORNER_PREFERENCE, ref pref, sizeof(int));
             }
 
-            // Reposition window
+            const uint swpFlags = NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW | NativeMethods.SWP_NOACTIVATE;
             NativeMethods.SetWindowPos(
                 hWnd,
                 NativeMethods.HWND_TOP,
@@ -315,8 +453,35 @@ namespace WindowsSplitter.Core
                 actualY,
                 actualW,
                 actualH,
-                NativeMethods.SWP_FRAMECHANGED | NativeMethods.SWP_SHOWWINDOW | NativeMethods.SWP_NOACTIVATE
+                swpFlags
             );
+
+            // Second pass DWM alignment: align visible extended frame bounds cleanly to target rect
+            if (_settings.DwmInvisibleBorderCompensation && hasDwmFrame)
+            {
+                if (NativeMethods.DwmGetWindowAttribute(hWnd, NativeMethods.DWMWA_EXTENDED_FRAME_BOUNDS, out var postFrame, Marshal.SizeOf<NativeMethods.RECT>()) == 0)
+                {
+                    int deltaLeft = targetX - postFrame.Left;
+                    int deltaTop = targetY - postFrame.Top;
+                    int deltaRight = (targetX + targetWidth) - postFrame.Right;
+                    int deltaBottom = (targetY + targetHeight) - postFrame.Bottom;
+
+                    if ((deltaLeft != 0 || deltaTop != 0 || deltaRight != 0 || deltaBottom != 0) &&
+                        Math.Abs(deltaLeft) <= 24 && Math.Abs(deltaTop) <= 24 &&
+                        Math.Abs(deltaRight) <= 24 && Math.Abs(deltaBottom) <= 24)
+                    {
+                        int corrX = actualX + deltaLeft;
+                        int corrY = actualY + deltaTop;
+                        int corrW = actualW - deltaLeft + deltaRight;
+                        int corrH = actualH - deltaTop + deltaBottom;
+
+                        if (corrW > 50 && corrH > 50)
+                        {
+                            NativeMethods.SetWindowPos(hWnd, NativeMethods.HWND_TOP, corrX, corrY, corrW, corrH, swpFlags);
+                        }
+                    }
+                }
+            }
 
             var visualRect = new NativeMethods.RECT
             {

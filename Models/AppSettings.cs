@@ -17,9 +17,10 @@ namespace WindowsSplitter.Models
         public bool StartWithWindows { get; set; } = false;
         public string Language { get; set; } = "en";
 
-        // Multi-monitor advanced options
+        // Multi-monitor & zone behavior options
         public bool EnableCrossMonitorWrap { get; set; } = true;
         public bool EnableWinShiftMonitorMove { get; set; } = true;
+        public bool PreventAccidentalTopEdgeMaximize { get; set; } = true;
 
         public string SelectedPresetId { get; set; } = "";
         public List<ZonePreset> Presets { get; set; } = new();
@@ -90,18 +91,33 @@ namespace WindowsSplitter.Models
             }
             else
             {
-                // Ensure all default presets exist and are marked IsDefault = true
-                foreach (var def in defaultPresets)
+                // Ensure all default presets exist with up-to-date SplitRoot and Zones
+                for (int i = 0; i < defaultPresets.Count; i++)
                 {
+                    var def = defaultPresets[i];
                     var existing = Presets.FirstOrDefault(p => p.Id == def.Id);
                     if (existing == null)
                     {
-                        Presets.Insert(0, def);
+                        Presets.Insert(Math.Min(i, Presets.Count), def);
                     }
                     else
                     {
                         existing.IsDefault = true;
+                        if (existing.SplitRoot == null)
+                        {
+                            existing.SplitRoot = def.SplitRoot?.Clone();
+                            existing.EnsureSplitTreeAndSync(screenW, screenH);
+                        }
+                        else
+                        {
+                            existing.EnsureSplitTreeAndSync(existing.ScreenWidth, existing.ScreenHeight);
+                        }
                     }
+                }
+
+                foreach (var custom in Presets.Where(p => !p.IsDefault))
+                {
+                    custom.EnsureSplitTreeAndSync(custom.ScreenWidth, custom.ScreenHeight);
                 }
             }
 
@@ -125,17 +141,32 @@ namespace WindowsSplitter.Models
                     }
                     else
                     {
-                        foreach (var def in monDefaults)
+                        for (int i = 0; i < monDefaults.Count; i++)
                         {
+                            var def = monDefaults[i];
                             var existing = config.Presets.FirstOrDefault(p => p.Id == def.Id);
                             if (existing == null)
                             {
-                                config.Presets.Insert(0, def);
+                                config.Presets.Insert(Math.Min(i, config.Presets.Count), def);
                             }
                             else
                             {
                                 existing.IsDefault = true;
+                                if (existing.SplitRoot == null)
+                                {
+                                    existing.SplitRoot = def.SplitRoot?.Clone();
+                                    existing.EnsureSplitTreeAndSync(config.ScreenWidth, config.ScreenHeight);
+                                }
+                                else
+                                {
+                                    existing.EnsureSplitTreeAndSync(config.ScreenWidth, config.ScreenHeight);
+                                }
                             }
+                        }
+
+                        foreach (var custom in config.Presets.Where(p => !p.IsDefault))
+                        {
+                            custom.EnsureSplitTreeAndSync(config.ScreenWidth, config.ScreenHeight);
                         }
                     }
                 }

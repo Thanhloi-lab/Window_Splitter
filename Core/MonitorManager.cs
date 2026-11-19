@@ -27,7 +27,7 @@ namespace WindowsSplitter.Core
                 string primaryTag = isEn ? " [Primary]" : " [Chính]";
                 string typeTag = IsUltrawide ? " (Ultrawide 21:9)" : (IsVertical ? (isEn ? " (Vertical)" : " (Màn dọc)") : " (16:9)");
                 string primaryStr = IsPrimary ? primaryTag : "";
-                return $"🖥️ {monPrefix} {Index}: {Width} × {Height}{primaryStr}{typeTag}";
+                return $"{monPrefix} {Index}: {Width} x {Height}{primaryStr}{typeTag}";
             }
         }
 

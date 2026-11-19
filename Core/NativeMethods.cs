@@ -74,11 +74,18 @@ namespace WindowsSplitter.Core
         // Window Messages
         public const uint WM_CLOSE = 0x0010;
         public const uint WM_DISPLAYCHANGE = 0x007E;
+        public const uint WM_NCHITTEST = 0x0084;
         public const uint WM_SYSCOMMAND = 0x0112;
         public const uint WM_KEYDOWN = 0x0100;
         public const uint WM_KEYUP = 0x0101;
         public const uint WM_SYSKEYDOWN = 0x0104;
         public const uint WM_SYSKEYUP = 0x0105;
+        public const uint WM_LBUTTONDOWN = 0x0201;
+        public const uint WM_LBUTTONUP = 0x0202;
+
+        public const int HTTOP = 12;
+        public const uint GA_ROOT = 2;
+        public const uint SMTO_ABORTIFHUNG = 0x0002;
 
         public const int SM_CMONITORS = 80;
         public const uint MONITORINFOF_PRIMARY = 0x00000001;
@@ -101,6 +108,7 @@ namespace WindowsSplitter.Core
 
         // Hooks
         public const int WH_KEYBOARD_LL = 13;
+        public const int WH_MOUSE_LL = 14;
         public const uint MONITOR_DEFAULTTONEAREST = 2;
 
         // DWM
@@ -169,6 +177,16 @@ namespace WindowsSplitter.Core
         }
 
         [StructLayout(LayoutKind.Sequential)]
+        public struct MSLLHOOKSTRUCT
+        {
+            public POINT pt;
+            public uint mouseData;
+            public uint flags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct WINDOWPLACEMENT
         {
             public int length;
@@ -184,6 +202,7 @@ namespace WindowsSplitter.Core
         #region Delegates
 
         public delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+        public delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
         public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
         public delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
         public delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
@@ -304,6 +323,18 @@ namespace WindowsSplitter.Core
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr WindowFromPoint(POINT Point);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
