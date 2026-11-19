@@ -82,10 +82,11 @@ jobs:
           Copy-Item THIRD-PARTY-NOTICES.txt publish/win-x64/
           Compress-Archive -Path "publish/win-x64/*" -DestinationPath $portableZip -Force
 
-          Get-ChildItem release_assets | Sort-Object Name | ForEach-Object {
+          $hashes = Get-ChildItem release_assets -File | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower()
             "$hash  $($_.Name)"
-          } | Out-File -Encoding ascii -FilePath release_assets/SHA256SUMS.txt
+          }
+          $hashes | Out-File -Encoding ascii -FilePath release_assets/SHA256SUMS.txt
 
       - name: Create or update GitHub Release
         env:
